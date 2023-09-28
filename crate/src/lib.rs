@@ -15,53 +15,82 @@ pub struct Word {
 
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
-pub struct Space {
-    pub contents: Option<Option<char>>,
+pub enum Direction {
+    Horizontal,
+    Verticle,
 }
 
-impl Default for Space {
-    fn default() -> Space {
-        Space {
-            contents: Some(None),
+#[derive(Clone, Deserialize, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct PlacedWord {
+    pub direction: Direction,
+    pub word: Word,
+}
+
+#[derive(Clone, Deserialize, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct Space {
+    pub letter: Option<Option<char>>,
+}
+
+// NOTE: This is used to avoid impling Copy on structs with strings.
+const DEFAULT_SPACE: Space = Space { letter: Some(None) };
+
+#[derive(Clone, Deserialize, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct CrosswordRow<const W: usize> {
+    #[serde(with = "serde_arrays")]
+    pub row: [Space; W],
+}
+
+impl<const W: usize> CrosswordRow<W> {
+    fn new() -> CrosswordRow<W> {
+        CrosswordRow::<W> {
+            row: [DEFAULT_SPACE; W],
         }
     }
 }
 
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
-pub struct CrosswordRow<const W: usize> {
-    pub row: [Space; W],
-}
-
-impl<const W: usize> Default for CrosswordRow<W> {
-    fn default() -> CrosswordRow<W> {
-        CrosswordRow::<W> {
-            row: [Space::default(); W],
-        }
-    }
+pub struct Placement {
+    pub x: usize,
+    pub y: usize,
+    pub direction: Direction,
 }
 
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct Crossword<const W: usize, const H: usize> {
+    #[serde(with = "serde_arrays")]
     pub puzzle: [CrosswordRow<W>; H],
     pub words: Vec<Word>,
 }
 
-impl<const W: usize, const H: usize> Default for Crossword<W, H> {
-    fn default() -> Crossword<W, H> {
+impl<const W: usize, const H: usize> Crossword<W, H> {
+    fn new() -> Crossword<W, H> {
+        let puzzle: [CrosswordRow<W>; H] = std::array::from_fn(|_| CrosswordRow::<W>::new());
         Crossword {
-            puzzle: [CrosswordRow::<W>::default(); H],
+            puzzle,
             words: Vec::<Word>::new(),
         }
+    }
+
+    fn place(&self, word: Word, x: usize, y: usize, direction: Direction) {
+        // TODO: Something!
+    }
+
+    fn can_place(&self, word: Word, x: usize, y: usize) -> Option<Placement> {
+        // TODO: Something!
+        None
     }
 }
 
 pub fn gen_crossword_first_draft<const W: usize, const H: usize>(
     words: Vec<Word>,
-    maxWords: usize,
+    max_words: usize,
 ) -> Crossword<W, H> {
-    let puzzle = Crossword::<W, H>::default();
+    let puzzle = Crossword::<W, H>::new();
 
     let mut words = words;
     words.shuffle(&mut thread_rng());
@@ -69,6 +98,50 @@ pub fn gen_crossword_first_draft<const W: usize, const H: usize>(
     let mut word = words.pop();
     if word.is_none() {
         return puzzle;
+    }
+
+    puzzle.place(word.unwrap(), 0, 0, Direction::Horizontal);
+
+    let mut word_count: usize = 1;
+    word = words.pop();
+
+    while word.is_some() && word_count < max_words {
+        let w = word.unwrap();
+        let count_at_current_word = word_count;
+        for letter in w.clone().text.chars() {
+            // TODO: Find a cleaner way to break out?
+            if count_at_current_word != word_count {
+                break;
+            }
+            for (row_count, _) in puzzle.puzzle.iter().enumerate() {
+                if count_at_current_word != word_count {
+                    break;
+                }
+                for (col_count, _) in puzzle.puzzle[row_count].row.iter().enumerate() {
+                    if count_at_current_word != word_count {
+                        break;
+                    }
+                    if let Some(Some(c)) = puzzle.puzzle[row_count].row[col_count].letter {
+                        if c == letter {
+                            // TODO: VERIFY THIS ISN'T BACKWARDS!
+                            match puzzle.can_place(w.clone(), col_count, row_count) {
+                                None => {}
+                                Some(placement) => {
+                                    puzzle.place(
+                                        w.clone(),
+                                        placement.x,
+                                        placement.y,
+                                        placement.direction,
+                                    );
+                                    word_count += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        word = words.pop();
     }
 
     puzzle

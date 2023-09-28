@@ -21,9 +21,11 @@ default = ["console_error_panic_hook"]
 console_error_panic_hook = { version = "0.1.7", optional = true }
 
 rand = "0.8"
+# NOTE: This is required to make use of Rand.
 getrandom = {version = "0.2", features = ["js"]}
 serde = {version = "1", features = ["derive"]}
 serde_json = "1"
+serde_arrays = "0.1"
 tsify = "0.4.5"
 wasm-bindgen = "0.2.84"
 

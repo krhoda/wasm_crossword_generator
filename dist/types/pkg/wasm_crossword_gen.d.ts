@@ -5,6 +5,37 @@
 * @returns {any}
 */
 export function quicksort(vec: string): any;
+export interface Word {
+    text: string;
+    clue: string | null;
+}
+
+export type Direction = "Horizontal" | "Verticle";
+
+export interface PlacedWord {
+    direction: Direction;
+    word: Word;
+}
+
+export interface Space {
+    letter: string | null | null;
+}
+
+export interface CrosswordRow {
+    row: Space[];
+}
+
+export interface Placement {
+    x: number;
+    y: number;
+    direction: Direction;
+}
+
+export interface Crossword {
+    puzzle: CrosswordRow<W>[];
+    words: Word[];
+}
+
 export type Sortable = string[] | number[];
 
 
