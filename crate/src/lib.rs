@@ -80,7 +80,7 @@ impl<const W: usize, const H: usize> Crossword<W, H> {
         // TODO: Something!
     }
 
-    fn can_place(&self, word: Word, x: usize, y: usize) -> Option<Placement> {
+    fn can_place(&self, word: &Word, x: usize, y: usize) -> Option<Placement> {
         // TODO: Something!
         None
     }
@@ -108,7 +108,7 @@ pub fn gen_crossword_first_draft<const W: usize, const H: usize>(
     while word.is_some() && word_count < max_words {
         let w = word.unwrap();
         let count_at_current_word = word_count;
-        for letter in w.clone().text.chars() {
+        for letter in w.text.chars() {
             // TODO: Find a cleaner way to break out?
             if count_at_current_word != word_count {
                 break;
@@ -124,17 +124,14 @@ pub fn gen_crossword_first_draft<const W: usize, const H: usize>(
                     if let Some(Some(c)) = puzzle.puzzle[row_count].row[col_count].letter {
                         if c == letter {
                             // TODO: VERIFY THIS ISN'T BACKWARDS!
-                            match puzzle.can_place(w.clone(), col_count, row_count) {
-                                None => {}
-                                Some(placement) => {
-                                    puzzle.place(
-                                        w.clone(),
-                                        placement.x,
-                                        placement.y,
-                                        placement.direction,
-                                    );
-                                    word_count += 1;
-                                }
+                            if let Some(placement) = puzzle.can_place(&w, col_count, row_count) {
+                                puzzle.place(
+                                    w.clone(),
+                                    placement.x,
+                                    placement.y,
+                                    placement.direction,
+                                );
+                                word_count += 1;
                             }
                         }
                     }
