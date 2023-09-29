@@ -53,11 +53,11 @@ pub struct PlacedWord {
 #[derive(Copy, Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct Space {
-    pub letter: Option<Option<char>>,
+    pub letter: Option<char>,
 }
 
 // NOTE: This is used to avoid impling Copy on structs with strings.
-const DEFAULT_SPACE: Space = Space { letter: Some(None) };
+const DEFAULT_SPACE: Space = Space { letter: None };
 
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -87,7 +87,7 @@ pub struct Placement {
 pub struct Crossword<const W: usize, const H: usize> {
     #[serde(with = "serde_arrays")]
     pub puzzle: [CrosswordRow<W>; H],
-    pub words: Vec<Word>,
+    pub words: Vec<PlacedWord>,
 }
 
 #[derive(Error, Debug)]
@@ -100,10 +100,26 @@ pub enum CrosswordError {
     EmptyIntersection,
 }
 
+#[derive(Clone, Deserialize, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct CrosswordConf {
+    words: Vec<Word>,
+    max_words: usize,
+}
+
 impl<const W: usize, const H: usize> Crossword<W, H> {
-    pub fn new(words: Vec<Word>, max_words: usize) -> Crossword<W, H> {
+    pub fn new(serialized_conf: &str) -> Crossword<W, H> {
         let mut crossword = Crossword::<W, H>::new_empty();
-        let mut words = words;
+
+        let wrapped_conf = serde_json::from_str::<CrosswordConf>(serialized_conf);
+        if wrapped_conf.is_err() {
+            return crossword;
+        }
+
+        let conf = wrapped_conf.unwrap();
+        let mut words = conf.words;
+        let max_words = conf.max_words;
+
         words.shuffle(&mut thread_rng());
 
         for word in words {
@@ -113,12 +129,12 @@ impl<const W: usize, const H: usize> Crossword<W, H> {
             }
 
             if crossword.words.is_empty() {
-                let _ = crossword.place(word, 0, 0);
+                let _ = crossword.place(word, 0, 0, 0);
                 continue;
             }
 
             let count_at_current_word = crossword.words.len();
-            for letter in word.text.chars() {
+            for (word_index, letter) in word.text.chars().enumerate() {
                 // TODO: Find a cleaner way to break out?
                 if count_at_current_word != crossword.words.len() {
                     break;
@@ -137,10 +153,11 @@ impl<const W: usize, const H: usize> Crossword<W, H> {
                             break;
                         }
 
-                        if let Some(Some(c)) = current_puzzle[row_count].row[col_count].letter {
+                        if let Some(c) = current_puzzle[row_count].row[col_count].letter {
                             if c == letter {
                                 // TODO: VERIFY THIS ISN'T BACKWARDS!
-                                let _ = crossword.place(word.clone(), col_count, row_count);
+                                let _ =
+                                    crossword.place(word.clone(), col_count, row_count, word_index);
                             }
                         }
                     }
@@ -155,202 +172,151 @@ impl<const W: usize, const H: usize> Crossword<W, H> {
         let puzzle: [CrosswordRow<W>; H] = std::array::from_fn(|_| CrosswordRow::<W>::new());
         Crossword {
             puzzle,
-            words: Vec::<Word>::new(),
+            words: Vec::<PlacedWord>::new(),
         }
-    }
-
-    fn is_empty(&self) -> bool {
-        for row in self.puzzle.iter() {
-            for space in row.row {
-                if let Some(Some(_)) = space.letter {
-                    return false;
-                }
-            }
-        }
-
-        true
     }
 
     // place takes a word and a possible intersection of the word.
     // The first word is special cased.
-    fn place(&mut self, word: Word, x: usize, y: usize) -> Result<(), CrosswordError> {
-        if x > W || y > H {
+    fn place(
+        &mut self,
+        word: Word,
+        x: usize,
+        y: usize,
+        word_index: usize,
+    ) -> Result<(), CrosswordError> {
+        if x > (W - 1) || y > (H - 1) {
             return Err(CrosswordError::PointOutOfBounds);
         }
 
-        let row = self.puzzle[y].row;
-        let intersection = row[x];
+        let placement_direction = self.can_place(&word, x, y, word_index);
 
-        if self.is_empty() {
-            // TODO: Something!
-            // let mut direction: Direction = rand::random();
-            // if !self.can_place(word, x, y, direction) {
-            //     direction = direction.other();
-            //     if !self.can_place(word, x, y, direction) {
-            //         return Err(CrosswordError::BadFit);
-            //     }
-            // }
+        if let Some(direction) = placement_direction {
+            let origin = if let Direction::Horizontal = direction {
+                x
+            } else {
+                y
+            };
 
-            // let chars = word.text.chars();
+            for (letter_count, letter) in word.text.chars().enumerate() {
+                let next_index = if letter_count < word_index {
+                    origin - (word_index - letter_count)
+                } else if letter_count > word_index {
+                    origin + (letter_count - word_index)
+                } else {
+                    origin
+                };
 
+                match direction {
+                    Direction::Horizontal => {
+                        self.puzzle[y].row[next_index] = Space {
+                            letter: Some(letter),
+                        };
+                    }
+                    Direction::Verticle => {
+                        self.puzzle[next_index].row[x] = Space {
+                            letter: Some(letter),
+                        };
+                    }
+                };
+            }
+
+            self.words.push(PlacedWord { word, direction });
             return Ok(());
         }
 
-        if let Some(Some(letter)) = intersection.letter {
-            Ok(())
+        Err(CrosswordError::BadFit)
+    }
+
+    fn can_place(
+        &mut self,
+        word: &Word,
+        x: usize,
+        y: usize,
+        word_index: usize,
+    ) -> Option<Direction> {
+        // Sanity check:
+        if word_index > word.text.len() - 1 {
+            return None;
+        }
+
+        let intersection_letter_word = word.text.chars().collect::<Vec<char>>()[word_index];
+        if let Some(intersection_letter_puzzle) = self.puzzle[y].row[x].letter {
+            if intersection_letter_puzzle != intersection_letter_word {
+                return None;
+            }
+        };
+
+        let first_try: Direction = rand::random();
+        let second_try = first_try.other();
+
+        if self._can_place(word, x, y, word_index, &first_try) {
+            Some(first_try)
+        } else if self._can_place(word, x, y, word_index, &second_try) {
+            Some(second_try)
         } else {
-            Err(CrosswordError::EmptyIntersection)
+            None
         }
     }
 
-    fn can_place(&mut self, word: Word, x: usize, y: usize) -> bool {
-        false
-    }
-}
-
-// Below here is the demo code
-// TODO: REMOVE!
-
-// This section is glue between JS and Rust:
-
-// This will be the shared type between JS and Rust.
-// This is the type that JSON will be deserailized into on the Rust side.
-// It will also generate a Typescript type exposed by the JS libraries.
-#[derive(Clone, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
-#[serde(untagged)]
-pub enum Sortable {
-    Strings(Vec<String>),
-    Numbers(Vec<f64>),
-}
-
-// This will treat the destination type (Sortable) generically.
-fn quicksort_interface(s: Sortable) -> Sortable {
-    match s {
-        Sortable::Strings(mut v) => {
-            qsort(&mut v);
-            Sortable::Strings(v)
+    fn _can_place(
+        &mut self,
+        word: &Word,
+        x: usize,
+        y: usize,
+        word_index: usize,
+        direction: &Direction,
+    ) -> bool {
+        let last_index = word.text.len() - 1;
+        // Is the word index out of bounds?
+        if word_index > last_index {
+            return false;
         }
-        Sortable::Numbers(mut v) => {
-            qsort(&mut v);
-            Sortable::Numbers(v)
-        }
-    }
-}
 
-// Other than Sortable's type definition, this is the only thing exposed
-// to the consuming libraries.
-// The lack of typing at the argument level is hidden behind the better
-// typing of the JavaScript wrapper -- see quicksort_wrapper.ts
-#[wasm_bindgen]
-pub fn quicksort(vec: String) -> Result<JsValue, JsError> {
-    let vec: Sortable = from_str(&vec).map_err(|e| JsError::new(&format!("{}", e)))?;
-    let res = to_string(&quicksort_interface(vec)).map_err(|e| JsError::new(&format!("{}", e)))?;
-    Ok(res.into())
-}
+        let remainder = last_index - word_index;
 
-// This section is the actual implementation in Rust terms.
-
-// The next three functions are a tiny modification to the implementation found here:
-// https://www.hackertouch.com/quick-sort-in-rust.html
-fn qsort<T: PartialEq + PartialOrd>(arr: &mut [T]) {
-    let len = arr.len();
-    _quicksort(arr, 0, (len - 1) as isize);
-}
-
-fn _quicksort<T: PartialEq + PartialOrd>(arr: &mut [T], low: isize, high: isize) {
-    if low < high {
-        let p = partition(arr, low, high);
-        _quicksort(arr, low, p - 1);
-        _quicksort(arr, p + 1, high);
-    }
-}
-
-fn partition<T: PartialEq + PartialOrd>(arr: &mut [T], low: isize, high: isize) -> isize {
-    let pivot = high as usize;
-    let mut store_index = low - 1;
-    let mut last_index = high;
-
-    loop {
-        store_index += 1;
-        while arr[store_index as usize] < arr[pivot] {
-            store_index += 1;
-        }
-        last_index -= 1;
-        while last_index >= 0 && arr[last_index as usize] > arr[pivot] {
-            last_index -= 1;
-        }
-        if store_index >= last_index {
-            break;
+        let origin = if let Direction::Horizontal = direction {
+            x
         } else {
-            arr.swap(store_index as usize, last_index as usize);
+            y
+        };
+
+        // Would the word go over the top or the left of the puzzle's bounds?
+        if word_index > origin {
+            return false;
         }
-    }
-    arr.swap(store_index as usize, pivot);
-    store_index
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+        let edge = if let Direction::Horizontal = direction {
+            W
+        } else {
+            H
+        };
 
-    #[test]
-    fn test_qsort() {
-        let expected = vec![
-            "A".to_string(),
-            "B".to_string(),
-            "C".to_string(),
-            "D".to_string(),
-        ];
+        // Would the word go over the bottom or the right of the puzzle's bounds?
+        if origin + remainder > edge {
+            return false;
+        }
 
-        let mut unsort1 = vec![
-            "B".to_string(),
-            "A".to_string(),
-            "C".to_string(),
-            "D".to_string(),
-        ];
+        for (letter_count, letter) in word.text.chars().enumerate() {
+            let next_index = if letter_count < word_index {
+                origin - (word_index - letter_count)
+            } else if letter_count > word_index {
+                origin + (letter_count - word_index)
+            } else {
+                origin
+            };
 
-        let mut unsort2 = vec![
-            "D".to_string(),
-            "C".to_string(),
-            "B".to_string(),
-            "A".to_string(),
-        ];
+            let space = match direction {
+                Direction::Horizontal => self.puzzle[y].row[next_index],
+                Direction::Verticle => self.puzzle[next_index].row[x],
+            };
 
-        let mut unsort3 = vec![
-            "C".to_string(),
-            "B".to_string(),
-            "D".to_string(),
-            "A".to_string(),
-        ];
-
-        // sanity check:
-        assert_eq!(&expected, &expected);
-        assert_ne!(&expected, &unsort1);
-        assert_ne!(&expected, &unsort2);
-        assert_ne!(&expected, &unsort3);
-
-        qsort(&mut unsort1);
-        qsort(&mut unsort2);
-        qsort(&mut unsort3);
-
-        assert_eq!(&expected, &unsort1);
-        assert_eq!(&expected, &unsort2);
-        assert_eq!(&expected, &unsort3);
-
-        let expected = [1, 2, 3];
-        let mut unsort1 = [3, 2, 1];
-        let mut unsort2 = [2, 3, 1];
-
-        // sanity check:
-        assert_eq!(&expected, &expected);
-        assert_ne!(&expected, &unsort1);
-        assert_ne!(&expected, &unsort2);
-
-        qsort(&mut unsort1);
-        qsort(&mut unsort2);
-
-        assert_eq!(&expected, &unsort1);
-        assert_eq!(&expected, &unsort2);
+            if let Some(c) = space.letter {
+                if letter != c {
+                    return false;
+                }
+            }
+        }
+        true
     }
 }

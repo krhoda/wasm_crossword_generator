@@ -1,10 +1,5 @@
 /* tslint:disable */
 /* eslint-disable */
-/**
-* @param {string} vec
-* @returns {any}
-*/
-export function quicksort(vec: string): any;
 export interface Word {
     text: string;
     clue: string | null;
@@ -18,7 +13,7 @@ export interface PlacedWord {
 }
 
 export interface Space {
-    letter: string | null | null;
+    letter: string | null;
 }
 
 export interface CrosswordRow {
@@ -33,20 +28,19 @@ export interface Placement {
 
 export interface Crossword {
     puzzle: CrosswordRow<W>[];
-    words: Word[];
+    words: PlacedWord[];
 }
 
-export type Sortable = string[] | number[];
+export interface CrosswordConf {
+    words: Word[];
+    max_words: number;
+}
 
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly quicksort: (a: number, b: number, c: number) => void;
-  readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
-  readonly __wbindgen_malloc: (a: number, b: number) => number;
-  readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;
