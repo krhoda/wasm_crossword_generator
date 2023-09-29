@@ -38,6 +38,6 @@ export class CrosswordClient {
 
 	public generate_crossword_puzzle = (conf: CrosswordConf): Crossword => {
 		let c = JSON.stringify(conf);
-		console.log(new_crossword(c));
+		return new_crossword(c);
 	}
 }

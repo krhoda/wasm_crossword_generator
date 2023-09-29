@@ -6,7 +6,7 @@
 	height: 10,
 	width: 10,
 	max_words: 2,
-	words: ["canine", "cat"]
+	words: [{text: "canine", clue: null}, {text: "cat", clue: null}]
   };
 
   CrosswordClient.initialize().then((client) => {

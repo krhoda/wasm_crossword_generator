@@ -337,7 +337,7 @@ class CrosswordClient {
     constructor() {
         this.generate_crossword_puzzle = (conf) => {
             let c = JSON.stringify(conf);
-            console.log(new_crossword(c));
+            return new_crossword(c);
         };
     }
 }

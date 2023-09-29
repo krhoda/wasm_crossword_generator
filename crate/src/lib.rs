@@ -1,17 +1,24 @@
 mod utils;
 
-use std::array;
-
 use rand::{
     distributions::{Distribution, Standard},
     seq::SliceRandom,
     thread_rng, Rng,
 };
+
 use serde::{Deserialize, Serialize};
-use serde_json::{from_str, to_string};
+use serde_json::from_str;
 use thiserror::Error;
 use tsify::Tsify;
 use wasm_bindgen::prelude::*;
+
+/* Uncomment for Debug
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+}
+*/
 
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -48,6 +55,7 @@ impl Distribution<Direction> for Standard {
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct PlacedWord {
+    // TODO: Add x / y coords
     pub direction: Direction,
     pub word: Word,
 }
@@ -106,10 +114,12 @@ pub struct CrosswordConf {
     pub height: usize,
 }
 
+// TODO: make this falliable? bubble an err instead of an empty puzzle?
 #[wasm_bindgen]
 pub fn new_crossword(s: &str) -> Crossword {
-    let wrapped_conf = serde_json::from_str::<CrosswordConf>(s);
-    if wrapped_conf.is_err() {
+    let wrapped_conf = from_str::<CrosswordConf>(s);
+    // if wrapped_conf.is_err() {
+    if let Err(e) = wrapped_conf {
         return Crossword::new_empty(0, 0);
     }
 
@@ -183,9 +193,13 @@ impl Crossword {
         Crossword {
             puzzle,
             words: Vec::<PlacedWord>::new(),
-            width: 0,
-            height: 0,
+            width,
+            height,
         }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.words.is_empty()
     }
 
     // place takes a word and a possible intersection of the word.
@@ -248,12 +262,14 @@ impl Crossword {
             return None;
         }
 
-        let intersection_letter_word = word.text.chars().collect::<Vec<char>>()[word_index];
-        if let Some(intersection_letter_puzzle) = self.puzzle[y].row[x] {
-            if intersection_letter_puzzle != intersection_letter_word {
-                return None;
-            }
-        };
+        if !self.is_empty() {
+            let intersection_letter_word = word.text.chars().collect::<Vec<char>>()[word_index];
+            if let Some(intersection_letter_puzzle) = self.puzzle[y].row[x] {
+                if intersection_letter_puzzle != intersection_letter_word {
+                    return None;
+                }
+            };
+        }
 
         let first_try: Direction = rand::random();
         let second_try = first_try.other();
