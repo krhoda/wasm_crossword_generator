@@ -1,5 +1,7 @@
 mod utils;
 
+use std::array;
+
 use rand::{
     distributions::{Distribution, Standard},
     seq::SliceRandom,
@@ -50,27 +52,21 @@ pub struct PlacedWord {
     pub word: Word,
 }
 
-#[derive(Copy, Clone, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
-pub struct Space {
-    pub letter: Option<char>,
-}
-
-// NOTE: This is used to avoid impling Copy on structs with strings.
-const DEFAULT_SPACE: Space = Space { letter: None };
-
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
-pub struct CrosswordRow<const W: usize> {
-    #[serde(with = "serde_arrays")]
-    pub row: [Space; W],
+pub struct CrosswordRow {
+    pub row: Vec<Option<char>>,
 }
 
-impl<const W: usize> CrosswordRow<W> {
-    fn new() -> CrosswordRow<W> {
-        CrosswordRow::<W> {
-            row: [DEFAULT_SPACE; W],
+// NOTE: If const generics worked with wasm_bindgen, we could do something way more concise/clear
+impl CrosswordRow {
+    fn new(width: usize) -> CrosswordRow {
+        let mut row = Vec::<Option<char>>::new();
+        for _ in 0..width {
+            row.push(None);
         }
+
+        CrosswordRow { row }
     }
 }
 
@@ -84,10 +80,11 @@ pub struct Placement {
 
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
-pub struct Crossword<const W: usize, const H: usize> {
-    #[serde(with = "serde_arrays")]
-    pub puzzle: [CrosswordRow<W>; H],
+pub struct Crossword {
+    pub puzzle: Vec<CrosswordRow>,
     pub words: Vec<PlacedWord>,
+    width: usize,
+    height: usize,
 }
 
 #[derive(Error, Debug)]
@@ -103,20 +100,28 @@ pub enum CrosswordError {
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct CrosswordConf {
-    words: Vec<Word>,
-    max_words: usize,
+    pub words: Vec<Word>,
+    pub max_words: usize,
+    pub width: usize,
+    pub height: usize,
 }
 
-impl<const W: usize, const H: usize> Crossword<W, H> {
-    pub fn new(serialized_conf: &str) -> Crossword<W, H> {
-        let mut crossword = Crossword::<W, H>::new_empty();
+#[wasm_bindgen]
+pub fn new_crossword(s: &str) -> Crossword {
+    let wrapped_conf = serde_json::from_str::<CrosswordConf>(s);
+    if wrapped_conf.is_err() {
+        return Crossword::new_empty(0, 0);
+    }
 
-        let wrapped_conf = serde_json::from_str::<CrosswordConf>(serialized_conf);
-        if wrapped_conf.is_err() {
-            return crossword;
-        }
+    let conf = wrapped_conf.unwrap();
+    Crossword::new(conf)
+}
 
-        let conf = wrapped_conf.unwrap();
+#[wasm_bindgen]
+impl Crossword {
+    pub fn new(conf: CrosswordConf) -> Crossword {
+        let mut crossword = Crossword::new_empty(conf.width, conf.height);
+
         let mut words = conf.words;
         let max_words = conf.max_words;
 
@@ -153,7 +158,7 @@ impl<const W: usize, const H: usize> Crossword<W, H> {
                             break;
                         }
 
-                        if let Some(c) = current_puzzle[row_count].row[col_count].letter {
+                        if let Some(c) = current_puzzle[row_count].row[col_count] {
                             if c == letter {
                                 // TODO: VERIFY THIS ISN'T BACKWARDS!
                                 let _ =
@@ -168,11 +173,18 @@ impl<const W: usize, const H: usize> Crossword<W, H> {
         crossword
     }
 
-    fn new_empty() -> Crossword<W, H> {
-        let puzzle: [CrosswordRow<W>; H] = std::array::from_fn(|_| CrosswordRow::<W>::new());
+    fn new_empty(width: usize, height: usize) -> Crossword {
+        let mut puzzle = Vec::<CrosswordRow>::new();
+
+        for _ in 0..height {
+            puzzle.push(CrosswordRow::new(width))
+        }
+
         Crossword {
             puzzle,
             words: Vec::<PlacedWord>::new(),
+            width: 0,
+            height: 0,
         }
     }
 
@@ -185,7 +197,7 @@ impl<const W: usize, const H: usize> Crossword<W, H> {
         y: usize,
         word_index: usize,
     ) -> Result<(), CrosswordError> {
-        if x > (W - 1) || y > (H - 1) {
+        if x > (self.width - 1) || y > (self.height - 1) {
             return Err(CrosswordError::PointOutOfBounds);
         }
 
@@ -209,14 +221,10 @@ impl<const W: usize, const H: usize> Crossword<W, H> {
 
                 match direction {
                     Direction::Horizontal => {
-                        self.puzzle[y].row[next_index] = Space {
-                            letter: Some(letter),
-                        };
+                        self.puzzle[y].row[next_index] = Some(letter);
                     }
                     Direction::Verticle => {
-                        self.puzzle[next_index].row[x] = Space {
-                            letter: Some(letter),
-                        };
+                        self.puzzle[next_index].row[x] = Some(letter);
                     }
                 };
             }
@@ -241,7 +249,7 @@ impl<const W: usize, const H: usize> Crossword<W, H> {
         }
 
         let intersection_letter_word = word.text.chars().collect::<Vec<char>>()[word_index];
-        if let Some(intersection_letter_puzzle) = self.puzzle[y].row[x].letter {
+        if let Some(intersection_letter_puzzle) = self.puzzle[y].row[x] {
             if intersection_letter_puzzle != intersection_letter_word {
                 return None;
             }
@@ -287,9 +295,9 @@ impl<const W: usize, const H: usize> Crossword<W, H> {
         }
 
         let edge = if let Direction::Horizontal = direction {
-            W
+            self.width
         } else {
-            H
+            self.height
         };
 
         // Would the word go over the bottom or the right of the puzzle's bounds?
@@ -311,7 +319,7 @@ impl<const W: usize, const H: usize> Crossword<W, H> {
                 Direction::Verticle => self.puzzle[next_index].row[x],
             };
 
-            if let Some(c) = space.letter {
+            if let Some(c) = space {
                 if letter != c {
                     return false;
                 }

@@ -1,4 +1,4 @@
-import init, {InitInput} from "./pkg/wasm_crossword_gen.js";
+import init, {InitInput, new_crossword} from "./pkg/wasm_crossword_gen.js";
 
 // There is some weirdness around re-exporting types using rollup, see:
 // https://github.com/rollup/plugins/issues/71
@@ -6,13 +6,10 @@ import init, {InitInput} from "./pkg/wasm_crossword_gen.js";
 export type Word = import("./pkg/wasm_crossword_gen.js").Word;
 export type Direction = import("./pkg/wasm_crossword_gen.js").Direction;
 export type PlacedWord = import("./pkg/wasm_crossword_gen.js").PlacedWord;
-export type Space = import("./pkg/wasm_crossword_gen.js").Space;
 export type CrosswordRow = import("./pkg/wasm_crossword_gen.js").CrosswordRow;
 export type Placement = import("./pkg/wasm_crossword_gen.js").Placement;
-export type Crossword = import("./pkg/wasm_crossword_gen.js").Crossword;
 export type CrosswordConf = import("./pkg/wasm_crossword_gen.js").CrosswordConf;
-
-
+export type Crossword = import("./pkg/wasm_crossword_gen.js").Crossword;
 
 export type LoadOpts =  {
 	wasm?: InitInput
@@ -25,10 +22,10 @@ export const setWasmInit = (arg: () => InitInput) => {
 
 let initialized: Promise<void> | undefined = undefined;
 
-export class PuzzleClient {
+export class CrosswordClient {
 	private constructor() {}
 
-	public static initialize = async (options?: LoadOpts): Promise<Sorter> => {
+	public static initialize = async (options?: LoadOpts): Promise<CrosswordClient> => {
 		if (initialized === undefined) {
 			//@ts-ignore
 			const loadModule = options?.wasm ?? wasmInit();
@@ -36,10 +33,11 @@ export class PuzzleClient {
 		}
 
 		await initialized;
-		return new PuzzleClient();
+		return new CrosswordClient();
 	}
 
-	public generate_crossword_puzzle = (a: Array<string>): void => {
-
+	public generate_crossword_puzzle = (conf: CrosswordConf): Crossword => {
+		let c = JSON.stringify(conf);
+		console.log(new_crossword(c));
 	}
 }

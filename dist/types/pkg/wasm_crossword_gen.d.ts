@@ -1,5 +1,10 @@
 /* tslint:disable */
 /* eslint-disable */
+/**
+* @param {string} s
+* @returns {Crossword}
+*/
+export function new_crossword(s: string): Crossword;
 export interface Word {
     text: string;
     clue: string | null;
@@ -12,12 +17,8 @@ export interface PlacedWord {
     word: Word;
 }
 
-export interface Space {
-    letter: string | null;
-}
-
 export interface CrosswordRow {
-    row: Space[];
+    row: (string | null)[];
 }
 
 export interface Placement {
@@ -27,13 +28,17 @@ export interface Placement {
 }
 
 export interface Crossword {
-    puzzle: CrosswordRow<W>[];
+    puzzle: CrosswordRow[];
     words: PlacedWord[];
+    width: number;
+    height: number;
 }
 
 export interface CrosswordConf {
     words: Word[];
     max_words: number;
+    width: number;
+    height: number;
 }
 
 
@@ -41,6 +46,11 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
+  readonly new_crossword: (a: number, b: number) => number;
+  readonly crossword_new: (a: number) => number;
+  readonly __wbindgen_malloc: (a: number, b: number) => number;
+  readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+  readonly __wbindgen_exn_store: (a: number) => void;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;
