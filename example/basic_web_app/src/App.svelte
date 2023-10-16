@@ -1,22 +1,106 @@
 <script lang="ts">
   import {CrosswordClient} from "wasm_crossword_gen";
-  import type {CrosswordConf} from "wasm_crossword_gen";
+  import type {CrosswordConf, Crossword} from "wasm_crossword_gen";
+
+  import {writable} from "svelte/store";
+  import type {Writable} from "svelte/store";
+
+  let puzzle: Writable<Crossword> = writable(null);
+  let _puzzle: Crossword = null;
+  puzzle.subscribe((x) => (_puzzle = x));
 
   let conf: CrosswordConf = {
 	height: 10,
 	width: 10,
-	max_words: 2,
-	words: [{text: "canine", clue: null}, {text: "cat", clue: null}]
+	max_words: 10,
+	words: [
+	  {text: "finders", clue: null},
+	  {text: "friends", clue: null},
+	  {text: "redfins", clue: null},
+	  {text: "diners", clue: null},
+	  {text: "fiends", clue: null},
+	  {text: "finder", clue: null},
+	  {text: "friend", clue: null},
+	  {text: "infers", clue: null},
+	  {text: "redfin", clue: null},
+	  {text: "refind", clue: null},
+	  {text: "rinsed", clue: null},
+	  {text: "snider", clue: null},
+	  {text: "diner", clue: null},
+	  {text: "dries", clue: null},
+	  {text: "fends", clue: null},
+	  {text: "ferns", clue: null},
+	  {text: "fides", clue: null},
+	  {text: "feind", clue: null},
+	  {text: "finds", clue: null},
+	  {text: "fined", clue: null},
+	  {text: "fired", clue: null},
+	  {text: "fires", clue: null},
+	  {text: "fried", clue: null},
+	  {text: "fries", clue: null},
+	  {text: "infer", clue: null},
+	  {text: "nerds", clue: null},
+	  {text: "reins", clue: null},
+	  {text: "rends", clue: null},
+	  {text: "resin", clue: null},
+	  {text: "rides", clue: null},
+	  {text: "rinse", clue: null},
+	  {text: "risen", clue: null},
+	  {text: "serif", clue: null},
+	  {text: "sired", clue: null},
+	  {text: "siren", clue: null},
+	  {text: "snide", clue: null},
+	  {text: "dens", clue: null},
+	  {text: "dies", clue: null},
+	  {text: "dine", clue: null},
+	  {text: "dire", clue: null},
+	  {text: "ends", clue: null},
+	  {text: "feds", clue: null},
+	  {text: "fend", clue: null},
+	  {text: "fens", clue: null},
+	  {text: "fern", clue: null},
+	  {text: "find", clue: null},
+	  {text: "fine", clue: null},
+	  {text: "fins", clue: null},
+	  {text: "fire", clue: null},
+	  {text: "firs", clue: null},
+	  {text: "ides", clue: null},
+	  {text: "ires", clue: null},
+	  {text: "nerd", clue: null},
+	  {text: "refs", clue: null},
+	  {text: "rein", clue: null},
+	  {text: "rend", clue: null},
+	  {text: "ride", clue: null},
+	  {text: "rids", clue: null},
+	  {text: "rife", clue: null},
+	  {text: "send", clue: null},
+	  {text: "side", clue: null},
+	  {text: "sine", clue: null},
+	  {text: "sire", clue: null},
+	]
   };
 
   CrosswordClient.initialize().then((client) => {
-	let puzzle = client.generate_crossword_puzzle(conf);
-	console.log(puzzle);
-  })
+	let p = client.generate_crossword_puzzle(conf);
+	console.log(p);
+	console.log("Is updated");
+	puzzle.set(p);
+  });
 </script>
 
 <main>
-  <p>Check the console log for the puzzle that will be rendered one day!</p>
+  <p>This should be a crossword: </p>
+  {#if _puzzle}
+	<div class="puzzle-container">
+	  {#each _puzzle.puzzle as row}
+		<p>
+		{#each row.row as column}
+		  <span> {column ?? "*"} </span>
+		{/each}
+		</p>
+	  {/each}
+    </div>
+  {/if}
 </main>
 
 <style>
@@ -25,13 +109,6 @@
 		padding: 1em;
 		max-width: 240px;
 		margin: 0 auto;
-	}
-
-	h1 {
-		color: #ff3e00;
-		text-transform: uppercase;
-		font-size: 4em;
-		font-weight: 100;
 	}
 
 	@media (min-width: 640px) {

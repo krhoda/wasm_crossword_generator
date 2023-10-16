@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 use thiserror::Error;
 use tsify::Tsify;
+use utils::set_panic_hook;
 use wasm_bindgen::prelude::*;
 
 /* Uncomment for Debug
@@ -117,9 +118,10 @@ pub struct CrosswordConf {
 // TODO: make this falliable? bubble an err instead of an empty puzzle?
 #[wasm_bindgen]
 pub fn new_crossword(s: &str) -> Crossword {
+    set_panic_hook();
     let wrapped_conf = from_str::<CrosswordConf>(s);
     // if wrapped_conf.is_err() {
-    if let Err(e) = wrapped_conf {
+    if wrapped_conf.is_err() {
         return Crossword::new_empty(0, 0);
     }
 
@@ -308,17 +310,36 @@ impl Crossword {
         // Would the word go over the top or the left of the puzzle's bounds?
         if word_index > origin {
             return false;
+        } else if origin > word_index {
+            let prefix = match direction {
+                Direction::Horizontal => self.puzzle[y].row[origin - 1],
+                Direction::Verticle => self.puzzle[origin - 1].row[x],
+            };
+
+            if prefix.is_some() {
+                return false;
+            }
         }
 
+        // NOTE: Verify this works as expected.
         let edge = if let Direction::Horizontal = direction {
-            self.width
+            self.width - 1
         } else {
-            self.height
+            self.height - 1
         };
 
         // Would the word go over the bottom or the right of the puzzle's bounds?
         if origin + remainder > edge {
             return false;
+        } else if origin + remainder < edge {
+            let suffix = match direction {
+                Direction::Horizontal => self.puzzle[y].row[origin + remainder + 1],
+                Direction::Verticle => self.puzzle[origin + remainder + 1].row[x],
+            };
+
+            if suffix.is_some() {
+                return false;
+            }
         }
 
         for (letter_count, letter) in word.text.chars().enumerate() {
@@ -330,17 +351,63 @@ impl Crossword {
                 origin
             };
 
+            let above_or_before = match direction {
+                Direction::Horizontal => {
+                    if y != 0 {
+                        self.puzzle[y - 1].row[next_index]
+                    } else {
+                        None
+                    }
+                }
+                Direction::Verticle => {
+                    if x != 0 {
+                        self.puzzle[next_index].row[x - 1]
+                    } else {
+                        None
+                    }
+                }
+            };
+
+            let below_or_after = match direction {
+                Direction::Horizontal => {
+                    if y < edge {
+                        self.puzzle[y + 1].row[next_index]
+                    } else {
+                        None
+                    }
+                }
+
+                Direction::Verticle => {
+                    if x < edge {
+                        self.puzzle[next_index].row[x + 1]
+                    } else {
+                        None
+                    }
+                }
+            };
+
             let space = match direction {
                 Direction::Horizontal => self.puzzle[y].row[next_index],
                 Direction::Verticle => self.puzzle[next_index].row[x],
             };
 
-            if let Some(c) = space {
-                if letter != c {
-                    return false;
+            match space {
+                Some(c) => {
+                    if letter != c {
+                        return false;
+                    }
+                }
+                None => {
+                    if above_or_before.is_some() {
+                        return false;
+                    };
+                    if below_or_after.is_some() {
+                        return false;
+                    };
                 }
             }
         }
+
         true
     }
 }
