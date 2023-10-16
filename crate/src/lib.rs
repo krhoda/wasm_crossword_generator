@@ -312,8 +312,8 @@ impl Crossword {
             return false;
         } else if origin > word_index {
             let prefix = match direction {
-                Direction::Horizontal => self.puzzle[y].row[origin - 1],
-                Direction::Verticle => self.puzzle[origin - 1].row[x],
+                Direction::Horizontal => self.puzzle[y].row[origin - word_index - 1],
+                Direction::Verticle => self.puzzle[origin - word_index - 1].row[x],
             };
 
             if prefix.is_some() {
