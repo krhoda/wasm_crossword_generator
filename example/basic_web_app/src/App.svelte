@@ -93,11 +93,11 @@
   {#if _puzzle}
 	<div class="puzzle-container">
 	  {#each _puzzle.puzzle as row}
-		<p>
+		<!-- <div class="puzzle-row"> -->
 		{#each row.row as column}
-		  <span> {column ?? "*"} </span>
+		  <div class="puzzle-item"> {column ?? "*"} </div>
 		{/each}
-		</p>
+		<!-- </div> -->
 	  {/each}
     </div>
   {/if}
@@ -115,5 +115,10 @@
 		main {
 			max-width: none;
 		}
+	}
+
+	.puzzle-container {
+	  display: grid;
+	  grid-template-columns: repeat(10, 1fr);
 	}
 </style>
