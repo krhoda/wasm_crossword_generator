@@ -1,10 +1,10 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
-* @param {string} s
+* @param {string} conf
 * @returns {Crossword}
 */
-export function new_crossword(s: string): Crossword;
+export function new_crossword(conf: string): Crossword;
 export interface Word {
     text: string;
     clue: string | null;
@@ -47,7 +47,6 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly new_crossword: (a: number, b: number) => number;
-  readonly crossword_new: (a: number) => number;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;

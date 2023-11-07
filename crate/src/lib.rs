@@ -8,6 +8,7 @@ use rand::{
 
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
+use std::cmp::{Ord, Ordering};
 use thiserror::Error;
 use tsify::Tsify;
 use utils::set_panic_hook;
@@ -98,6 +99,8 @@ pub struct Crossword {
 
 #[derive(Error, Debug)]
 pub enum CrosswordError {
+    #[error("unable to deserialize crossword configuration")]
+    BadConfiguration,
     #[error("word doesn't fit")]
     BadFit,
     #[error("point out of bounds")]
@@ -117,21 +120,20 @@ pub struct CrosswordConf {
 
 // TODO: make this falliable? bubble an err instead of an empty puzzle?
 #[wasm_bindgen]
-pub fn new_crossword(s: &str) -> Crossword {
+pub fn new_crossword(conf: &str) -> Crossword {
     set_panic_hook();
-    let wrapped_conf = from_str::<CrosswordConf>(s);
-    // if wrapped_conf.is_err() {
-    if wrapped_conf.is_err() {
-        return Crossword::new_empty(0, 0);
-    }
-
-    let conf = wrapped_conf.unwrap();
+    let conf = from_str::<CrosswordConf>(conf).unwrap_or(CrosswordConf {
+        words: Vec::new(),
+        max_words: 0,
+        width: 0,
+        height: 0,
+    });
     Crossword::new(conf)
 }
 
 #[wasm_bindgen]
 impl Crossword {
-    pub fn new(conf: CrosswordConf) -> Crossword {
+    fn new(conf: CrosswordConf) -> Crossword {
         let mut crossword = Crossword::new_empty(conf.width, conf.height);
 
         let mut words = conf.words;
@@ -145,13 +147,15 @@ impl Crossword {
                 break;
             }
 
+            // Detect if this is the initial placement.
             if crossword.words.is_empty() {
+                // TODO: Consult the config for starting at a particular index!
                 let _ = crossword.place(word, 0, 0, 0);
                 continue;
             }
 
             let count_at_current_word = crossword.words.len();
-            for (word_index, letter) in word.text.chars().enumerate() {
+            for (intersection_index, letter) in word.text.chars().enumerate() {
                 // TODO: Find a cleaner way to break out?
                 if count_at_current_word != crossword.words.len() {
                     break;
@@ -172,9 +176,12 @@ impl Crossword {
 
                         if let Some(c) = current_puzzle[row_count].row[col_count] {
                             if c == letter {
-                                // TODO: VERIFY THIS ISN'T BACKWARDS!
-                                let _ =
-                                    crossword.place(word.clone(), col_count, row_count, word_index);
+                                let _ = crossword.place(
+                                    word.clone(),
+                                    col_count,
+                                    row_count,
+                                    intersection_index,
+                                );
                             }
                         }
                     }
@@ -211,13 +218,13 @@ impl Crossword {
         word: Word,
         x: usize,
         y: usize,
-        word_index: usize,
+        intersection_index: usize,
     ) -> Result<(), CrosswordError> {
         if x > (self.width - 1) || y > (self.height - 1) {
             return Err(CrosswordError::PointOutOfBounds);
         }
 
-        let placement_direction = self.can_place(&word, x, y, word_index);
+        let placement_direction = self.can_place(&word, x, y, intersection_index);
 
         if let Some(direction) = placement_direction {
             let origin = if let Direction::Horizontal = direction {
@@ -227,12 +234,11 @@ impl Crossword {
             };
 
             for (letter_count, letter) in word.text.chars().enumerate() {
-                let next_index = if letter_count < word_index {
-                    origin - (word_index - letter_count)
-                } else if letter_count > word_index {
-                    origin + (letter_count - word_index)
-                } else {
-                    origin
+                // Set the next index relative to the intersection_index.
+                let next_index = match letter_count.cmp(&intersection_index) {
+                    Ordering::Less => origin - (intersection_index - letter_count),
+                    Ordering::Equal => origin,
+                    Ordering::Greater => origin + (letter_count - intersection_index),
                 };
 
                 match direction {
@@ -257,15 +263,16 @@ impl Crossword {
         word: &Word,
         x: usize,
         y: usize,
-        word_index: usize,
+        intersection_index: usize,
     ) -> Option<Direction> {
         // Sanity check:
-        if word_index > word.text.len() - 1 {
+        if intersection_index > word.text.len() - 1 {
             return None;
         }
 
         if !self.is_empty() {
-            let intersection_letter_word = word.text.chars().collect::<Vec<char>>()[word_index];
+            let intersection_letter_word =
+                word.text.chars().collect::<Vec<char>>()[intersection_index];
             if let Some(intersection_letter_puzzle) = self.puzzle[y].row[x] {
                 if intersection_letter_puzzle != intersection_letter_word {
                     return None;
@@ -276,9 +283,9 @@ impl Crossword {
         let first_try: Direction = rand::random();
         let second_try = first_try.other();
 
-        if self._can_place(word, x, y, word_index, &first_try) {
+        if self._can_place(word, x, y, intersection_index, &first_try) {
             Some(first_try)
-        } else if self._can_place(word, x, y, word_index, &second_try) {
+        } else if self._can_place(word, x, y, intersection_index, &second_try) {
             Some(second_try)
         } else {
             None
@@ -290,16 +297,14 @@ impl Crossword {
         word: &Word,
         x: usize,
         y: usize,
-        word_index: usize,
+        intersection_index: usize,
         direction: &Direction,
     ) -> bool {
         let last_index = word.text.len() - 1;
-        // Is the word index out of bounds?
-        if word_index > last_index {
+        // Is the intersection index out of bounds?
+        if intersection_index > last_index {
             return false;
         }
-
-        let remainder = last_index - word_index;
 
         let origin = if let Direction::Horizontal = direction {
             x
@@ -308,47 +313,55 @@ impl Crossword {
         };
 
         // Would the word go over the top or the left of the puzzle's bounds?
-        if word_index > origin {
-            return false;
-        } else if origin > word_index {
-            let prefix = match direction {
-                Direction::Horizontal => self.puzzle[y].row[origin - word_index - 1],
-                Direction::Verticle => self.puzzle[origin - word_index - 1].row[x],
-            };
+        match intersection_index.cmp(&origin) {
+            // Check the space beyond the beginning of the word to make sure it's empty.
+            Ordering::Less => {
+                let prefix = match direction {
+                    Direction::Horizontal => self.puzzle[y].row[origin - intersection_index - 1],
+                    Direction::Verticle => self.puzzle[origin - intersection_index - 1].row[x],
+                };
 
-            if prefix.is_some() {
-                return false;
+                if prefix.is_some() {
+                    return false;
+                }
             }
-        }
+            // The word starts at the edge of the board, so no check needed.
+            Ordering::Equal => {}
+            // The word goes over the edge of the board.
+            Ordering::Greater => return false,
+        };
 
-        // NOTE: Verify this works as expected.
         let edge = if let Direction::Horizontal = direction {
             self.width - 1
         } else {
             self.height - 1
         };
 
+        let remainder = last_index - intersection_index;
         // Would the word go over the bottom or the right of the puzzle's bounds?
-        if origin + remainder > edge {
-            return false;
-        } else if origin + remainder < edge {
-            let suffix = match direction {
-                Direction::Horizontal => self.puzzle[y].row[origin + remainder + 1],
-                Direction::Verticle => self.puzzle[origin + remainder + 1].row[x],
-            };
+        match (origin + remainder).cmp(&edge) {
+            // Check the space beyond the end of the word to make sure it's empty.
+            Ordering::Less => {
+                let suffix = match direction {
+                    Direction::Horizontal => self.puzzle[y].row[origin + remainder + 1],
+                    Direction::Verticle => self.puzzle[origin + remainder + 1].row[x],
+                };
 
-            if suffix.is_some() {
-                return false;
+                if suffix.is_some() {
+                    return false;
+                }
             }
+            // The word ends at the edge of the board, so no check needed.
+            Ordering::Equal => {}
+            // The word goes over the edge of the board.
+            Ordering::Greater => return false,
         }
 
         for (letter_count, letter) in word.text.chars().enumerate() {
-            let next_index = if letter_count < word_index {
-                origin - (word_index - letter_count)
-            } else if letter_count > word_index {
-                origin + (letter_count - word_index)
-            } else {
-                origin
+            let next_index = match letter_count.cmp(&intersection_index) {
+                Ordering::Less => origin - (intersection_index - letter_count),
+                Ordering::Equal => origin,
+                Ordering::Greater => origin + (letter_count - intersection_index),
             };
 
             let above_or_before = match direction {
