@@ -118,17 +118,11 @@ pub struct CrosswordConf {
     pub height: usize,
 }
 
-// TODO: make this falliable? bubble an err instead of an empty puzzle?
 #[wasm_bindgen]
-pub fn new_crossword(conf: &str) -> Crossword {
+pub fn new_crossword(conf: &str) -> Result<Crossword, JsError> {
     set_panic_hook();
-    let conf = from_str::<CrosswordConf>(conf).unwrap_or(CrosswordConf {
-        words: Vec::new(),
-        max_words: 0,
-        width: 0,
-        height: 0,
-    });
-    Crossword::new(conf)
+    let conf = from_str::<CrosswordConf>(conf).map_err(|e| JsError::new(&e.to_string()))?;
+    Ok(Crossword::new(conf))
 }
 
 #[wasm_bindgen]
@@ -154,9 +148,15 @@ impl Crossword {
                 continue;
             }
 
+            // Create count before trying to place a word.
+            // If the length of crossword.words changes, then
+            // the current word was placed and the nested set of loops
+            // should halt.
+            // This could be broken into ~3 fns and made more/less clear.
             let count_at_current_word = crossword.words.len();
             for (intersection_index, letter) in word.text.chars().enumerate() {
-                // TODO: Find a cleaner way to break out?
+                // Before each iteration, see if the previous iteration added a word
+                // If so, bale.
                 if count_at_current_word != crossword.words.len() {
                     break;
                 }
@@ -165,17 +165,25 @@ impl Crossword {
                 let current_puzzle = crossword.puzzle.clone();
 
                 for (row_count, _) in current_puzzle.iter().enumerate() {
+                    // If the previous iteration added a word to crosswords.words, bale.
                     if count_at_current_word != crossword.words.len() {
                         break;
                     }
 
                     for (col_count, _) in current_puzzle[row_count].row.iter().enumerate() {
+                        // If the previous iteration added a word to crosswords.words, bale.
                         if count_at_current_word != crossword.words.len() {
                             break;
                         }
 
+                        // If the given coordinates have a letter ...
                         if let Some(c) = current_puzzle[row_count].row[col_count] {
+                            // ... and it matches letter.
                             if c == letter {
+                                // This call will add a word to crossword.words if it succeeds.
+                                // If it fails, crossword.words will stay the same.
+                                // This particular iteration does not care to handle errs and
+                                // simply brute forces placement.
                                 let _ = crossword.place(
                                     word.clone(),
                                     col_count,
