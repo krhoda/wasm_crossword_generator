@@ -12,7 +12,7 @@
   let conf: CrosswordConf = {
 	height: 10,
 	width: 10,
-	max_words: 10,
+	max_words: 15,
 	words: [
 	  {text: "finders", clue: null},
 	  {text: "friends", clue: null},
@@ -77,14 +77,24 @@
 	  {text: "side", clue: null},
 	  {text: "sine", clue: null},
 	  {text: "sire", clue: null},
-	]
+	],
+	requirements: {
+	  max_retries: 100,
+	  min_words: 8,
+	  max_empty_columns: 1,
+	  max_empty_rows: 1
+	}
   };
 
   CrosswordClient.initialize().then((client) => {
-	let p = client.generate_crossword_puzzle(conf);
-	console.log(p);
-	console.log("Is updated");
-	puzzle.set(p);
+	try {
+	  let p = client.generate_crossword_puzzle(conf);
+	  console.log(p);
+	  console.log("Is updated");
+	  puzzle.set(p);
+	} catch (e) {
+	  console.error(e);
+	}
   });
 </script>
 

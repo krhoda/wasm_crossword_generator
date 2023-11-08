@@ -39,6 +39,14 @@ export interface CrosswordConf {
     max_words: number;
     width: number;
     height: number;
+    requirements: CrosswordReqs | null;
+}
+
+export interface CrosswordReqs {
+    max_retries: number;
+    min_words: number | null;
+    max_empty_columns: number | null;
+    max_empty_rows: number | null;
 }
 
 

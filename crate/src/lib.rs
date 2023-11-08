@@ -101,10 +101,12 @@ pub struct Crossword {
 pub enum CrosswordError {
     #[error("word doesn't fit")]
     BadFit,
-    #[error("point out of bounds")]
-    PointOutOfBounds,
     #[error("intersection point can only be empty for placement of first word")]
     EmptyIntersection,
+    #[error("could not generate crossword before hitting max retries")]
+    MaxRetries,
+    #[error("point out of bounds")]
+    PointOutOfBounds,
 }
 
 #[derive(Clone, Deserialize, Serialize, Tsify)]
@@ -114,18 +116,35 @@ pub struct CrosswordConf {
     pub max_words: usize,
     pub width: usize,
     pub height: usize,
+    pub requirements: Option<CrosswordReqs>,
+}
+
+#[derive(Clone, Deserialize, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct CrosswordReqs {
+    pub max_retries: usize,
+    pub min_words: Option<usize>,
+    pub max_empty_columns: Option<usize>,
+    pub max_empty_rows: Option<usize>,
 }
 
 #[wasm_bindgen]
 pub fn new_crossword(conf: &str) -> Result<Crossword, JsError> {
     set_panic_hook();
     let conf = from_str::<CrosswordConf>(conf).map_err(|e| JsError::new(&e.to_string()))?;
-    Ok(Crossword::new(conf))
+    Crossword::new(conf).map_err(|e| JsError::new(&e.to_string()))
 }
 
 #[wasm_bindgen]
 impl Crossword {
-    fn new(conf: CrosswordConf) -> Crossword {
+    fn new(conf: CrosswordConf) -> Result<Crossword, CrosswordError> {
+        Crossword::new_recursive(conf, 0)
+    }
+
+    fn new_recursive(conf: CrosswordConf, iteration: usize) -> Result<Crossword, CrosswordError> {
+        // To avoid issues with borrowing later.
+        let c = conf.clone();
+
         let mut crossword = Crossword::new_empty(conf.width, conf.height);
 
         let mut words = conf.words;
@@ -155,7 +174,42 @@ impl Crossword {
             }
         }
 
-        crossword
+        match conf.requirements {
+            Some(req) => {
+                // Work from here
+                let mut valid = true;
+                if let Some(min_words) = req.min_words {
+                    if crossword.words.len() < min_words {
+                        valid = false;
+                    }
+                }
+
+                if valid {
+                    if let Some(mer) = req.max_empty_rows {
+                        if mer < crossword.empty_rows() {
+                            valid = false;
+                        }
+                    }
+                }
+
+                if valid {
+                    if let Some(mec) = req.max_empty_columns {
+                        if mec < crossword.empty_columns() {
+                            valid = false;
+                        }
+                    }
+                }
+
+                if valid {
+                    Ok(crossword)
+                } else if iteration < req.max_retries {
+                    Crossword::new_recursive(c, iteration + 1)
+                } else {
+                    Err(CrosswordError::MaxRetries)
+                }
+            }
+            None => Ok(crossword),
+        }
     }
 
     // This will return Some(()) if the letter was placed.
@@ -243,6 +297,43 @@ impl Crossword {
 
     fn is_empty(&self) -> bool {
         self.words.is_empty()
+    }
+
+    fn empty_columns(&self) -> usize {
+        let mut acc = 0;
+        for i in 0..self.width {
+            let mut is_empty = true;
+            for row in self.puzzle.clone() {
+                if row.row[i].is_some() {
+                    is_empty = false;
+                    break;
+                }
+            }
+
+            if is_empty {
+                acc += 1;
+            }
+        }
+
+        acc
+    }
+
+    fn empty_rows(&self) -> usize {
+        let mut acc = 0;
+        for row in self.puzzle.clone() {
+            let mut is_empty = true;
+            for space in row.row {
+                if space.is_some() {
+                    is_empty = false;
+                    break;
+                }
+            }
+
+            if is_empty {
+                acc += 1;
+            }
+        }
+        acc
     }
 
     // place takes a word and a possible intersection of the word.
