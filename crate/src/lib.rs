@@ -99,8 +99,6 @@ pub struct Crossword {
 
 #[derive(Error, Debug)]
 pub enum CrosswordError {
-    #[error("unable to deserialize crossword configuration")]
-    BadConfiguration,
     #[error("word doesn't fit")]
     BadFit,
     #[error("point out of bounds")]
@@ -148,56 +146,84 @@ impl Crossword {
                 continue;
             }
 
-            // Create count before trying to place a word.
-            // If the length of crossword.words changes, then
-            // the current word was placed and the nested set of loops
-            // should halt.
-            // This could be broken into ~3 fns and made more/less clear.
-            let count_at_current_word = crossword.words.len();
             for (intersection_index, letter) in word.text.chars().enumerate() {
-                // Before each iteration, see if the previous iteration added a word
-                // If so, bale.
-                if count_at_current_word != crossword.words.len() {
+                if Crossword::place_word(&mut crossword, intersection_index, &word, &letter)
+                    .is_some()
+                {
                     break;
-                }
-
-                // Clone to avoid borrow issues.
-                let current_puzzle = crossword.puzzle.clone();
-
-                for (row_count, _) in current_puzzle.iter().enumerate() {
-                    // If the previous iteration added a word to crosswords.words, bale.
-                    if count_at_current_word != crossword.words.len() {
-                        break;
-                    }
-
-                    for (col_count, _) in current_puzzle[row_count].row.iter().enumerate() {
-                        // If the previous iteration added a word to crosswords.words, bale.
-                        if count_at_current_word != crossword.words.len() {
-                            break;
-                        }
-
-                        // If the given coordinates have a letter ...
-                        if let Some(c) = current_puzzle[row_count].row[col_count] {
-                            // ... and it matches letter.
-                            if c == letter {
-                                // This call will add a word to crossword.words if it succeeds.
-                                // If it fails, crossword.words will stay the same.
-                                // This particular iteration does not care to handle errs and
-                                // simply brute forces placement.
-                                let _ = crossword.place(
-                                    word.clone(),
-                                    col_count,
-                                    row_count,
-                                    intersection_index,
-                                );
-                            }
-                        }
-                    }
                 }
             }
         }
 
         crossword
+    }
+
+    // This will return Some(()) if the letter was placed.
+    fn place_word(
+        crossword: &mut Crossword,
+        intersection_index: usize,
+        word: &Word,
+        letter: &char,
+    ) -> Option<()> {
+        let temp = crossword.clone();
+        for (row_count, _) in temp.puzzle.iter().enumerate() {
+            if Crossword::place_on_row(crossword, row_count, intersection_index, word, letter)
+                .is_some()
+            {
+                return Some(());
+            }
+        }
+
+        None
+    }
+
+    // This will return Some(()) if the letter was placed.
+    fn place_on_row(
+        crossword: &mut Crossword,
+        row_count: usize,
+        intersection_index: usize,
+        word: &Word,
+        letter: &char,
+    ) -> Option<()> {
+        let temp = crossword.clone();
+        for (col_count, _) in temp.puzzle[row_count].row.iter().enumerate() {
+            if Crossword::place_on_column(
+                crossword,
+                col_count,
+                row_count,
+                intersection_index,
+                word,
+                letter,
+            )
+            .is_some()
+            {
+                return Some(());
+            }
+        }
+
+        None
+    }
+
+    // This will return Some(()) if the letter was placed.
+    fn place_on_column(
+        crossword: &mut Crossword,
+        col_count: usize,
+        row_count: usize,
+        intersection_index: usize,
+        word: &Word,
+        letter: &char,
+    ) -> Option<()> {
+        if let Some(c) = crossword.puzzle[row_count].row[col_count] {
+            if &c == letter
+                && crossword
+                    .place(word.clone(), col_count, row_count, intersection_index)
+                    .is_ok()
+            {
+                return Some(());
+            }
+        }
+
+        None
     }
 
     fn new_empty(width: usize, height: usize) -> Crossword {
