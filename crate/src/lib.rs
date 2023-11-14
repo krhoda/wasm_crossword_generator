@@ -1,3 +1,4 @@
+// TODO: Remove a lot of cloning!
 mod utils;
 
 use rand::{
@@ -132,7 +133,7 @@ pub enum CrosswordError {
     NoValidInitialWords,
 }
 
-// CrosswordReqs is requirements the final puzzle must meet such as...
+// CrosswordReqs is a structure holding requirements the final puzzle must meet such as...
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct CrosswordReqs {
@@ -154,14 +155,28 @@ pub struct CrosswordReqs {
 pub enum CrosswordInitialPlacementStrategy {
     Center(Direction),
     Custom(Placement),
-    UpperLeft(Direction),
     LowerLeft(Direction),
-    UpperRight(Direction),
     LowerRight(Direction),
+    UpperLeft(Direction),
+    UpperRight(Direction),
+}
+
+impl CrosswordInitialPlacementStrategy {
+    fn direction(&self) -> Direction {
+        match self {
+            CrosswordInitialPlacementStrategy::Center(d)
+            | CrosswordInitialPlacementStrategy::LowerLeft(d)
+            | CrosswordInitialPlacementStrategy::LowerRight(d)
+            | CrosswordInitialPlacementStrategy::UpperLeft(d)
+            | CrosswordInitialPlacementStrategy::UpperRight(d) => d.clone(),
+            CrosswordInitialPlacementStrategy::Custom(p) => p.direction.clone(),
+        }
+    }
 }
 
 impl std::default::Default for CrosswordInitialPlacementStrategy {
     fn default() -> Self {
+        // TODO: Change this to random?
         CrosswordInitialPlacementStrategy::Center(Direction::Horizontal)
     }
 }
@@ -191,13 +206,13 @@ impl std::default::Default for CrosswordInitialPlacement {
 pub struct CrosswordConf {
     // The possible words to use to construct the puzzle
     pub words: Vec<Word>,
-    // Maximum words before crossword generation halts
+    // Maximum words for the puzzle
     pub max_words: usize,
     // How wide the puzzle should be in single letter spaces
     pub width: usize,
     // How tall the puzzle should be in single letter spaces
     pub height: usize,
-    // Optional requirements for the final puzzle, if a generated puzzle does not meet these
+    // Optional requirements for the puzzle, if a generated puzzle does not meet these
     // then a retry is initiated, the CrosswordReqs structure requires a max_retries field
     // be specified to avoid the classic problems with recursion
     pub requirements: Option<CrosswordReqs>,
@@ -222,6 +237,7 @@ impl Crossword {
         Crossword::new_recursive(conf, 0)
     }
 
+    // TODO: Change this to an iterative approach for compilation purposes.
     fn new_recursive(conf: CrosswordConf, iteration: usize) -> Result<Crossword, CrosswordError> {
         // To avoid issues with borrowing later.
         let c = conf.clone();
@@ -231,7 +247,6 @@ impl Crossword {
         // Check the config for a min letter count, otherwise set to the constant.
         let min_letter_count = if let Some(reqs) = &conf.requirements {
             match reqs.min_letters_per_word {
-                None => MIN_LETTER_COUNT,
                 Some(mlc) => {
                     if mlc >= MIN_LETTER_COUNT {
                         mlc
@@ -239,43 +254,63 @@ impl Crossword {
                         MIN_LETTER_COUNT
                     }
                 }
+                None => MIN_LETTER_COUNT,
             }
         } else {
             MIN_LETTER_COUNT
         };
 
         let mut words = conf.words;
-        // Remove all words under the min letter count
-        words.retain(|w| w.text.chars().count() >= min_letter_count);
+
         // Randomize before the next removal step
         words.shuffle(&mut thread_rng());
-        // Remove all duplicate words and homographs
         {
-            // Open a new scope ...
+            // Open a new scope to drop these vars after using them.
             let mut h = HashSet::new();
-            words.retain(|w| h.insert(w.text.clone()));
-            // ... to drop h here
+            let longest_side = if crossword.width >= crossword.height {
+                crossword.width
+            } else {
+                crossword.height
+            };
+
+            // Remove all words under the min letter count
+            // Remove all words larger than the largest side.
+            // Remove all duplicate words and homographs
+            // Because of the above shuffle the homograph retained is random.
+            words.retain(|w| {
+                w.text.chars().count() >= min_letter_count
+                    && w.text.chars().count() <= longest_side
+                    && h.insert(w.text.clone())
+            });
         }
 
-        let words = crossword.place_initial(conf.initial_placement.clone(), &mut words)?;
+        // The shadowed version of words will be missing the initially placed word removed
+        // from the vector in place.
+        let words = crossword.place_initial(conf.initial_placement.clone(), words)?;
 
         let max_words = conf.max_words;
 
-        for mut word in words {
+        for word in words {
             // If max words hit, break.
             if crossword.words.len() >= max_words {
                 break;
             }
 
+            // try using each letter in the word to find a valid overlap on the puzzle.
             for (intersection_index, letter) in word.text.chars().enumerate() {
+                // Was the word placed at the using current intersection index?
                 if Crossword::place_word(&mut crossword, intersection_index, &word, &letter)
                     .is_some()
                 {
+                    // If so, try to place next word.
                     break;
                 }
+                // If not, try the next letter in this word
             }
         }
 
+        // Once the words vector is exhausted, check the resulting puzzle against the (optional)
+        // requirements porition of the config
         match conf.requirements {
             Some(req) => {
                 let mut valid = true;
@@ -318,14 +353,13 @@ impl Crossword {
         initial_placement_conf: Option<CrosswordInitialPlacement>,
         words: Vec<Word>,
     ) -> Result<Vec<Word>, CrosswordError> {
-        let mut words = words;
         // Extract the initial placement instructions or generate them from defaults
         // if not provided
-        let (mlc, strategy) = match initial_placement_conf {
+        let (min_letter_count, strategy) = match initial_placement_conf {
             None => {
                 let def = CrosswordInitialPlacement::default();
                 // Unwraps are safe since it's been constructed from default.
-                (def.min_letter_count.unwrap(), def.strategy.clone().unwrap())
+                (def.min_letter_count.unwrap(), def.strategy.unwrap())
             }
             Some(ip) => {
                 let initial_mlc = if let Some(mlc) = ip.min_letter_count {
@@ -337,22 +371,25 @@ impl Crossword {
                 let initial_strat = if let Some(strat) = ip.strategy {
                     strat.clone()
                 } else {
+                    // TODO: Make random instead of default?
                     CrosswordInitialPlacementStrategy::default()
                 };
                 (initial_mlc, initial_strat)
             }
         };
 
+        let mut words = words;
         // Create a place to hold words whose minimum letter count is greater than the puzzle's
         // minimum but less than the initial word's minimum. These will be appended back onto the
         // "words"
         let mut skipped_words: Vec<Word> = Vec::new();
         match words.pop() {
-            None => return Err(CrosswordError::NoValidInitialWords),
+            None => Err(CrosswordError::NoValidInitialWords),
             Some(word) => {
                 let mut word = word;
-                while word.text.chars().count() < mlc {
+                while !self.try_initial_placement(min_letter_count, &strategy, &word) {
                     skipped_words.push(word);
+
                     match words.pop() {
                         None => {
                             return Err(CrosswordError::NoValidInitialWords);
@@ -362,9 +399,166 @@ impl Crossword {
                         }
                     }
                 }
-                self._place(word, 0, 0, 0)?;
+
+                skipped_words.reverse();
                 words.append(&mut skipped_words);
                 Ok(words)
+            }
+        }
+    }
+
+    // returns true if the word was placed, false if it fails to meet some requirement
+    fn try_initial_placement(
+        &mut self,
+        min_letter_count: usize,
+        strategy: &CrosswordInitialPlacementStrategy,
+        word: &Word,
+    ) -> bool {
+        let max_letter_count = match strategy.direction() {
+            Direction::Horizontal => self.width,
+            Direction::Verticle => self.height,
+        };
+
+        let count = word.text.chars().count();
+        if count < min_letter_count && count > max_letter_count {
+            return false;
+        };
+
+        match strategy {
+            CrosswordInitialPlacementStrategy::Center(direction) => {
+                // This gets a little tricky, but basically if the height / width / count
+                // are even, then a choice between mid points occurs. Because of zero indexing,
+                // this is expressed as a 50% chance of a -1 to the midpoint. The underlying
+                // word uses the offset matching it's orientaion. Because of the earlier math
+                // around max letter count, we know this won't go out of bounds.
+
+                let rem_y = self.height % 2;
+                let y_offset = if rem_y == 0 {
+                    thread_rng().gen_range(0..=1)
+                } else {
+                    0
+                };
+
+                let mid_y = if rem_y == 0 {
+                    (self.height / 2) - y_offset
+                } else {
+                    self.height / 2
+                };
+
+                let rem_x = self.width % 2;
+                let x_offset = if rem_x == 0 {
+                    thread_rng().gen_range(0..=1)
+                } else {
+                    0
+                };
+
+                let mid_x = if rem_y == 0 {
+                    (self.height / 2) - x_offset
+                } else {
+                    self.height / 2
+                };
+
+                let w_rem = count % 2;
+
+                let w_mid = match direction {
+                    Direction::Horizontal => {
+                        if w_rem == 0 {
+                            (count / 2) - x_offset
+                        } else {
+                            count / 2
+                        }
+                    }
+                    Direction::Verticle => {
+                        if w_rem == 0 {
+                            (count / 2) - y_offset
+                        } else {
+                            count / 2
+                        }
+                    }
+                };
+                self._place(word.clone(), mid_x, mid_y, w_mid, direction.clone());
+                true
+            }
+            CrosswordInitialPlacementStrategy::Custom(placement) => {
+                if placement.x >= self.width {
+                    return false;
+                }
+
+                if placement.y >= self.height {
+                    return false;
+                }
+
+                match placement.direction {
+                    Direction::Horizontal => {
+                        if placement.x + count > self.width {
+                            return false;
+                        }
+                    }
+                    Direction::Verticle => {
+                        if placement.y + count > self.height {
+                            return false;
+                        }
+                    }
+                }
+
+                self._place(
+                    word.clone(),
+                    placement.x,
+                    placement.y,
+                    0,
+                    placement.direction.clone(),
+                );
+
+                true
+            }
+            CrosswordInitialPlacementStrategy::LowerLeft(direction) => {
+                match direction {
+                    Direction::Horizontal => {
+                        self._place(word.clone(), 0, self.height - 1, 0, direction.clone());
+                    }
+                    Direction::Verticle => {
+                        self._place(
+                            word.clone(),
+                            0,
+                            self.height - 1,
+                            count - 1,
+                            direction.clone(),
+                        );
+                    }
+                }
+                true
+            }
+            CrosswordInitialPlacementStrategy::LowerRight(direction) => {
+                self._place(
+                    word.clone(),
+                    self.width - 1,
+                    self.height - 1,
+                    count - 1,
+                    direction.clone(),
+                );
+
+                true
+            }
+            CrosswordInitialPlacementStrategy::UpperLeft(direction) => {
+                self._place(word.clone(), 0, 0, 0, direction.clone());
+                true
+            }
+            CrosswordInitialPlacementStrategy::UpperRight(direction) => {
+                match direction {
+                    Direction::Horizontal => {
+                        self._place(
+                            word.clone(),
+                            self.width - 1,
+                            0,
+                            count - 1,
+                            direction.clone(),
+                        );
+                    }
+                    Direction::Verticle => {
+                        self._place(word.clone(), self.width - 1, 0, 0, direction.clone());
+                    }
+                }
+                true
             }
         }
     }
@@ -453,12 +647,6 @@ impl Crossword {
         }
     }
 
-    // A helper function to determine if any words have been placed to allow special casing of
-    // the first word.
-    fn is_empty(&self) -> bool {
-        self.words.is_empty()
-    }
-
     // returns a count of completely empty columns
     fn empty_columns(&self) -> usize {
         let mut acc = 0;
@@ -516,7 +704,8 @@ impl Crossword {
         let placement_direction = self.can_place(&word, x, y, intersection_index);
 
         if let Some(direction) = placement_direction {
-            self._place(word, x, y, intersection_index, direction)
+            self._place(word, x, y, intersection_index, direction);
+            Ok(())
         } else {
             Err(CrosswordError::BadFit)
         }
@@ -531,7 +720,7 @@ impl Crossword {
         y: usize,
         intersection_index: usize,
         direction: Direction,
-    ) -> Result<(), CrosswordError> {
+    ) {
         let origin = if let Direction::Horizontal = direction {
             x
         } else {
@@ -557,7 +746,6 @@ impl Crossword {
         }
 
         self.words.push(PlacedWord { word, direction });
-        Ok(())
     }
 
     fn can_place(

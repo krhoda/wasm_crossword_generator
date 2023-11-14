@@ -42,7 +42,7 @@ export interface CrosswordReqs {
     max_empty_rows: number | null;
 }
 
-export type CrosswordInitialPlacementStrategy = { Center: Direction } | { Custom: Placement } | "UpperLeft" | "LowerLeft" | "UpperRight" | "LowerRight";
+export type CrosswordInitialPlacementStrategy = { Center: Direction } | { Custom: Placement } | { LowerLeft: Direction } | { LowerRight: Direction } | { UpperLeft: Direction } | { UpperRight: Direction };
 
 export interface CrosswordInitialPlacement {
     min_letter_count: number | null;
