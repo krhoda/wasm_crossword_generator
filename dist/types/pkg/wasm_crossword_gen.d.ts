@@ -36,6 +36,7 @@ export interface Crossword {
 
 export interface CrosswordReqs {
     max_retries: number;
+    min_letters_per_word: number | null;
     min_words: number | null;
     max_empty_columns: number | null;
     max_empty_rows: number | null;

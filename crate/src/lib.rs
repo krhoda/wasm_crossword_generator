@@ -6,7 +6,10 @@ use rand::{
     thread_rng, Rng,
 };
 use serde::{Deserialize, Serialize};
-use std::cmp::{Ord, Ordering};
+use std::{
+    cmp::{Ord, Ordering},
+    collections::HashSet,
+};
 use thiserror::Error;
 use tsify::Tsify;
 use utils::set_panic_hook;
@@ -132,7 +135,9 @@ pub enum CrosswordError {
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct CrosswordReqs {
     // ... how many times to attempt to make a valid puzzle before erroring out ...
-    pub max_retries: usize,
+    pub max_retries: usize, // NOTE: This is the only required one
+    // ... how small can a word be ...
+    pub min_letters_per_word: Option<usize>,
     // ... the minimum number of words that make up the answer ...
     pub min_words: Option<usize>,
     // ... the number of columns that can be completely empty ...
@@ -208,9 +213,29 @@ impl Crossword {
 
         let mut crossword = Crossword::new_empty(conf.width, conf.height);
 
-        // TODO: Filter words against configurable filter.
-        // Regardless of filter, enforce no duplicates, no words under 3 letters.
+        // Check the config for a min letter count, otherwise set to the constant.
+        let min_letter_count = if let Some(reqs) = &conf.requirements {
+            match reqs.min_letters_per_word {
+                None => MIN_LETTER_COUNT,
+                Some(mlc) => {
+                    if mlc >= MIN_LETTER_COUNT {
+                        mlc
+                    } else {
+                        MIN_LETTER_COUNT
+                    }
+                }
+            }
+        } else {
+            MIN_LETTER_COUNT
+        };
+
         let mut words = conf.words;
+        // Remove all words under the min letter count
+        words.retain(|w| w.text.chars().count() >= min_letter_count);
+        // Remove all duplicate words
+        // let mut h = HashSet::new();
+        // words.retain(|w| h.insert(*w));
+
         let max_words = conf.max_words;
 
         words.shuffle(&mut thread_rng());
