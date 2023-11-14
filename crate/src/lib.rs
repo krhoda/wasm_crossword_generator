@@ -24,13 +24,13 @@ extern "C" {
 */
 
 // If a word is smaller than three letters, it will make the crossword generation work less well.
-// Defined as a constant to avoid magic numbers.
+// Defined as a constant to avoid magic numbers. Callers can provide largerr minimums.
 const MIN_LETTER_COUNT: usize = 3;
 
 // Word is a record containing a potential portion of the Crossword answer at "text"
 // along with an optional "clue" field.
 // The "text" field will be split using .chars() with all the implications that brings.
-#[derive(Clone, Deserialize, Serialize, Tsify)]
+#[derive(Clone, Deserialize, Eq, Hash, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct Word {
     pub text: String,
@@ -96,7 +96,7 @@ impl CrosswordRow {
 }
 
 // Placement describes a location on the crossword puzzle.
-// TODO: Replace .direction in PlacedWord with .placement?
+// TODO: Replace .direction in PlacedWord with .placement: Placement?
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct Placement {
@@ -164,9 +164,12 @@ impl std::default::Default for CrosswordInitialPlacementStrategy {
     }
 }
 
+// CrosswordInitialPlacement allows the caller to specify where and how large the initial word
+// placed should be
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct CrosswordInitialPlacement {
+    // This differs from CrosswordReq's min_letters_per_word by only applying to the initial word
     pub min_letter_count: Option<usize>,
     pub strategy: Option<CrosswordInitialPlacementStrategy>,
 }
@@ -180,14 +183,24 @@ impl std::default::Default for CrosswordInitialPlacement {
     }
 }
 
+// CrosswordConf is the structure used to generate crossword puzzles.
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct CrosswordConf {
+    // The possible words to use to construct the puzzle
     pub words: Vec<Word>,
+    // Maximum words before crossword generation halts
     pub max_words: usize,
+    // How wide the puzzle should be in single letter spaces
     pub width: usize,
+    // How tall the puzzle should be in single letter spaces
     pub height: usize,
+    // Optional requirements for the final puzzle, if a generated puzzle does not meet these
+    // then a retry is initiated, the CrosswordReqs structure requires a max_retries field
+    // be specified to avoid the classic problems with recursion
     pub requirements: Option<CrosswordReqs>,
+    // Optional requirements for the initial placement, allowing a caller to specify where and
+    // how large the inital word placed should be.
     pub initial_placement: Option<CrosswordInitialPlacement>,
 }
 
@@ -233,8 +246,12 @@ impl Crossword {
         // Remove all words under the min letter count
         words.retain(|w| w.text.chars().count() >= min_letter_count);
         // Remove all duplicate words
-        // let mut h = HashSet::new();
-        // words.retain(|w| h.insert(*w));
+        {
+            // Open a new scope ...
+            let mut h = HashSet::new();
+            words.retain(|w| h.insert(w.clone()));
+            // ... to drop h here
+        }
 
         let max_words = conf.max_words;
 
