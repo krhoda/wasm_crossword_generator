@@ -1,10 +1,10 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
-* @param {string} conf
+* @param {CrosswordConf} conf
 * @returns {Crossword}
 */
-export function new_crossword(conf: string): Crossword;
+export function new_crossword(conf: CrosswordConf): Crossword;
 export interface Word {
     text: string;
     clue: string | null;
@@ -34,14 +34,6 @@ export interface Crossword {
     height: number;
 }
 
-export interface CrosswordConf {
-    words: Word[];
-    max_words: number;
-    width: number;
-    height: number;
-    requirements: CrosswordReqs | null;
-}
-
 export interface CrosswordReqs {
     max_retries: number;
     min_words: number | null;
@@ -49,15 +41,31 @@ export interface CrosswordReqs {
     max_empty_rows: number | null;
 }
 
+export type CrosswordInitialPlacementStrategy = { Center: Direction } | { Custom: Placement } | "UpperLeft" | "LowerLeft" | "UpperRight" | "LowerRight";
+
+export interface CrosswordInitialPlacement {
+    min_letter_count: number | null;
+    strategy: CrosswordInitialPlacementStrategy | null;
+}
+
+export interface CrosswordConf {
+    words: Word[];
+    max_words: number;
+    width: number;
+    height: number;
+    requirements: CrosswordReqs | null;
+    initial_placement: CrosswordInitialPlacement | null;
+}
+
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly new_crossword: (a: number, b: number, c: number) => void;
-  readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
+  readonly new_crossword: (a: number, b: number) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+  readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_exn_store: (a: number) => void;
 }

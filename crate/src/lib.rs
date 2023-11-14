@@ -5,9 +5,7 @@ use rand::{
     seq::SliceRandom,
     thread_rng, Rng,
 };
-
 use serde::{Deserialize, Serialize};
-use serde_json::from_str;
 use std::cmp::{Ord, Ordering};
 use thiserror::Error;
 use tsify::Tsify;
@@ -22,6 +20,13 @@ extern "C" {
 }
 */
 
+// If a word is smaller than three letters, it will make the crossword generation work less well.
+// Defined as a constant to avoid magic numbers.
+const MIN_LETTER_COUNT: usize = 3;
+
+// Word is a record containing a potential portion of the Crossword answer at "text"
+// along with an optional "clue" field.
+// The "text" field will be split using .chars() with all the implications that brings.
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct Word {
@@ -29,6 +34,7 @@ pub struct Word {
     pub clue: Option<String>,
 }
 
+// Direction is used to determine the orientation of the word.
 #[derive(Clone, Debug, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub enum Direction {
@@ -36,6 +42,7 @@ pub enum Direction {
     Verticle,
 }
 
+// The implementation of Direction exposes a logical "not" fn called "other"
 impl Direction {
     pub fn other(&self) -> Direction {
         match self {
@@ -45,6 +52,7 @@ impl Direction {
     }
 }
 
+// This impl block adds the ability to get a random Direction using the local rng
 impl Distribution<Direction> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Direction {
         match rng.gen_range(0..=1) {
@@ -54,14 +62,18 @@ impl Distribution<Direction> for Standard {
     }
 }
 
+// PlacedWord represents a word which makes up the crossword puzzle's answers
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct PlacedWord {
-    // TODO: Add x / y coords
+    // TODO: Add x / y coord of origin.
     pub direction: Direction,
     pub word: Word,
 }
 
+// CrosswordRow represents of one row of a crossword answer
+// Within the interior "row" vector, there is either a None for a blank space
+// or a Some(c) where c: char which would be a component of the crossword solution.
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct CrosswordRow {
@@ -80,6 +92,8 @@ impl CrosswordRow {
     }
 }
 
+// Placement describes a location on the crossword puzzle.
+// TODO: Replace .direction in PlacedWord with .placement?
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct Placement {
@@ -88,6 +102,8 @@ pub struct Placement {
     pub direction: Direction,
 }
 
+// Crossword represents a complete crossword puzzle structure. Does not include stateful
+// constructs for user input, just represents the static structure and answers.
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct Crossword {
@@ -97,16 +113,66 @@ pub struct Crossword {
     height: usize,
 }
 
+// CrosswordError is what it says on the tin. Often ellided over in favor of retrying, which if
+// fails, throws CrosswordError::MaxRetries.
 #[derive(Error, Debug)]
 pub enum CrosswordError {
     #[error("word doesn't fit")]
     BadFit,
-    #[error("intersection point can only be empty for placement of first word")]
+    #[error("intersection point was empty on non-first word")]
     EmptyIntersection,
     #[error("could not generate crossword before hitting max retries")]
     MaxRetries,
     #[error("point out of bounds")]
     PointOutOfBounds,
+}
+
+// CrosswordReqs is requirements the final puzzle must meet such as...
+#[derive(Clone, Deserialize, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct CrosswordReqs {
+    // ... how many times to attempt to make a valid puzzle before erroring out ...
+    pub max_retries: usize,
+    // ... the minimum number of words that make up the answer ...
+    pub min_words: Option<usize>,
+    // ... the number of columns that can be completely empty ...
+    pub max_empty_columns: Option<usize>,
+    // ... the number of rows that can be completely empty
+    pub max_empty_rows: Option<usize>,
+}
+
+// CrosswordInitialPlacementStrategy allows the caller to specifiy how to begin the crossword
+#[derive(Clone, Deserialize, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub enum CrosswordInitialPlacementStrategy {
+    Center(Direction),
+    Custom(Placement),
+    UpperLeft,
+    LowerLeft,
+    UpperRight,
+    LowerRight,
+}
+
+impl std::default::Default for CrosswordInitialPlacementStrategy {
+    fn default() -> Self {
+        CrosswordInitialPlacementStrategy::Center(Direction::Horizontal)
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct CrosswordInitialPlacement {
+    pub min_letter_count: Option<usize>,
+    pub strategy: Option<CrosswordInitialPlacementStrategy>,
+}
+
+impl std::default::Default for CrosswordInitialPlacement {
+    fn default() -> Self {
+        CrosswordInitialPlacement {
+            min_letter_count: Some(MIN_LETTER_COUNT),
+            strategy: Some(CrosswordInitialPlacementStrategy::default()),
+        }
+    }
 }
 
 #[derive(Clone, Deserialize, Serialize, Tsify)]
@@ -117,24 +183,19 @@ pub struct CrosswordConf {
     pub width: usize,
     pub height: usize,
     pub requirements: Option<CrosswordReqs>,
+    pub initial_placement: Option<CrosswordInitialPlacement>,
 }
 
-#[derive(Clone, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
-pub struct CrosswordReqs {
-    pub max_retries: usize,
-    pub min_words: Option<usize>,
-    pub max_empty_columns: Option<usize>,
-    pub max_empty_rows: Option<usize>,
-}
-
+// This is the way calling applications should construct Crossword structs
 #[wasm_bindgen]
-pub fn new_crossword(conf: &str) -> Result<Crossword, JsError> {
+pub fn new_crossword(conf: CrosswordConf) -> Result<Crossword, JsError> {
+    // This call improves err handling on the JS side.
+    // This fn should be the entry point from WASM so it makes sense to call this here.
     set_panic_hook();
-    let conf = from_str::<CrosswordConf>(conf).map_err(|e| JsError::new(&e.to_string()))?;
     Crossword::new(conf).map_err(|e| JsError::new(&e.to_string()))
 }
 
+// NOTE: This impl has no pub fns, it's used by new_crossword
 #[wasm_bindgen]
 impl Crossword {
     fn new(conf: CrosswordConf) -> Result<Crossword, CrosswordError> {
@@ -147,6 +208,8 @@ impl Crossword {
 
         let mut crossword = Crossword::new_empty(conf.width, conf.height);
 
+        // TODO: Filter words against configurable filter.
+        // Regardless of filter, enforce no duplicates, no words under 3 letters.
         let mut words = conf.words;
         let max_words = conf.max_words;
 
@@ -176,7 +239,6 @@ impl Crossword {
 
         match conf.requirements {
             Some(req) => {
-                // Work from here
                 let mut valid = true;
                 if let Some(min_words) = req.min_words {
                     if crossword.words.len() < min_words {
@@ -280,6 +342,7 @@ impl Crossword {
         None
     }
 
+    // Returns an empty crossword at the given w x h
     fn new_empty(width: usize, height: usize) -> Crossword {
         let mut puzzle = Vec::<CrosswordRow>::new();
 
@@ -295,10 +358,13 @@ impl Crossword {
         }
     }
 
+    // A helper function to determine if any words have been placed to allow special casing of
+    // the first word.
     fn is_empty(&self) -> bool {
         self.words.is_empty()
     }
 
+    // returns a count of completely empty columns
     fn empty_columns(&self) -> usize {
         let mut acc = 0;
         for i in 0..self.width {
@@ -318,6 +384,7 @@ impl Crossword {
         acc
     }
 
+    // returns a count of completely empty rows
     fn empty_rows(&self) -> usize {
         let mut acc = 0;
         for row in self.puzzle.clone() {
@@ -337,7 +404,7 @@ impl Crossword {
     }
 
     // place takes a word and a possible intersection of the word.
-    // The first word is special cased.
+    // The first word is special cased in the interior fn call to can_place.
     fn place(
         &mut self,
         word: Word,
@@ -349,6 +416,9 @@ impl Crossword {
             return Err(CrosswordError::PointOutOfBounds);
         }
 
+        // Can the word be placed at these coordinates? If so, which direction?
+        // In the case that either direction is valid, Cthulu has risen, but also,
+        // it would tolerare this non-Eucludian condition and pick randomly.
         let placement_direction = self.can_place(&word, x, y, intersection_index);
 
         if let Some(direction) = placement_direction {
