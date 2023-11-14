@@ -13,7 +13,7 @@ export interface Word {
 export type Direction = "Horizontal" | "Verticle";
 
 export interface PlacedWord {
-    direction: Direction;
+    placement: Placement;
     word: Word;
 }
 

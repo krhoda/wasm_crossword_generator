@@ -70,8 +70,7 @@ impl Distribution<Direction> for Standard {
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct PlacedWord {
-    // TODO: Add x / y coord of origin.
-    pub direction: Direction,
+    pub placement: Placement,
     pub word: Word,
 }
 
@@ -97,7 +96,6 @@ impl CrosswordRow {
 }
 
 // Placement describes a location on the crossword puzzle.
-// TODO: Replace .direction in PlacedWord with .placement: Placement?
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct Placement {
@@ -131,6 +129,8 @@ pub enum CrosswordError {
     PointOutOfBounds,
     #[error("no valid inital words")]
     NoValidInitialWords,
+    #[error("did not meet requirements")]
+    InsufficientPuzzle,
 }
 
 // CrosswordReqs is a structure holding requirements the final puzzle must meet such as...
@@ -174,10 +174,22 @@ impl CrosswordInitialPlacementStrategy {
     }
 }
 
+impl Distribution<CrosswordInitialPlacementStrategy> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> CrosswordInitialPlacementStrategy {
+        let direction: Direction = rand::random();
+        match rng.gen_range(0..=4) {
+            0 => CrosswordInitialPlacementStrategy::Center(direction),
+            1 => CrosswordInitialPlacementStrategy::LowerLeft(direction),
+            2 => CrosswordInitialPlacementStrategy::LowerRight(direction),
+            3 => CrosswordInitialPlacementStrategy::UpperLeft(direction),
+            _ => CrosswordInitialPlacementStrategy::UpperRight(direction),
+        }
+    }
+}
+
 impl std::default::Default for CrosswordInitialPlacementStrategy {
     fn default() -> Self {
-        // TODO: Change this to random?
-        CrosswordInitialPlacementStrategy::Center(Direction::Horizontal)
+        rand::random()
     }
 }
 
@@ -234,14 +246,23 @@ pub fn new_crossword(conf: CrosswordConf) -> Result<Crossword, JsError> {
 #[wasm_bindgen]
 impl Crossword {
     fn new(conf: CrosswordConf) -> Result<Crossword, CrosswordError> {
-        Crossword::new_recursive(conf, 0)
+        if let Ok(crossword) = Crossword::generate(conf.clone()) {
+            return Ok(crossword);
+        } else if let Some(reqs) = &conf.requirements {
+            let mut attempt = 0;
+            while attempt < reqs.max_retries {
+                if let Ok(crossword) = Crossword::generate(conf.clone()) {
+                    return Ok(crossword);
+                } else {
+                    attempt += 1;
+                }
+            }
+        }
+
+        Err(CrosswordError::MaxRetries)
     }
 
-    // TODO: Change this to an iterative approach for compilation purposes.
-    fn new_recursive(conf: CrosswordConf, iteration: usize) -> Result<Crossword, CrosswordError> {
-        // To avoid issues with borrowing later.
-        let c = conf.clone();
-
+    fn generate(conf: CrosswordConf) -> Result<Crossword, CrosswordError> {
         let mut crossword = Crossword::new_empty(conf.width, conf.height);
 
         // Check the config for a min letter count, otherwise set to the constant.
@@ -338,10 +359,8 @@ impl Crossword {
 
                 if valid {
                     Ok(crossword)
-                } else if iteration < req.max_retries {
-                    Crossword::new_recursive(c, iteration + 1)
                 } else {
-                    Err(CrosswordError::MaxRetries)
+                    Err(CrosswordError::InsufficientPuzzle)
                 }
             }
             None => Ok(crossword),
@@ -371,7 +390,6 @@ impl Crossword {
                 let initial_strat = if let Some(strat) = ip.strategy {
                     strat.clone()
                 } else {
-                    // TODO: Make random instead of default?
                     CrosswordInitialPlacementStrategy::default()
                 };
                 (initial_mlc, initial_strat)
@@ -745,7 +763,23 @@ impl Crossword {
             };
         }
 
-        self.words.push(PlacedWord { word, direction });
+        let placement_x = match direction {
+            Direction::Horizontal => x - intersection_index,
+            Direction::Verticle => x,
+        };
+
+        let placement_y = match direction {
+            Direction::Horizontal => y,
+            Direction::Verticle => y - intersection_index,
+        };
+
+        let placement = Placement {
+            direction,
+            x: placement_x,
+            y: placement_y,
+        };
+
+        self.words.push(PlacedWord { word, placement });
     }
 
     fn can_place(

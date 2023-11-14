@@ -30,7 +30,6 @@
 	  {text: "dries", clue: null},
 	  {text: "fends", clue: null},
 	  {text: "ferns", clue: null},
-	  {text: "fides", clue: null},
 	  {text: "feind", clue: null},
 	  {text: "finds", clue: null},
 	  {text: "fined", clue: null},
