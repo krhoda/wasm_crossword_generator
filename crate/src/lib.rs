@@ -245,11 +245,11 @@ impl Crossword {
         let mut words = conf.words;
         // Remove all words under the min letter count
         words.retain(|w| w.text.chars().count() >= min_letter_count);
-        // Remove all duplicate words
+        // Remove all duplicate words and homographs
         {
             // Open a new scope ...
             let mut h = HashSet::new();
-            words.retain(|w| h.insert(w.clone()));
+            words.retain(|w| h.insert(w.text.clone()));
             // ... to drop h here
         }
 
