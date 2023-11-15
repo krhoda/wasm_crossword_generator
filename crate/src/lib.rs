@@ -1,4 +1,3 @@
-// TODO: Remove a lot of cloning!
 mod utils;
 
 use rand::{
@@ -307,7 +306,7 @@ impl Crossword {
 
         // The shadowed version of words will be missing the initially placed word removed
         // from the vector in place.
-        let words = crossword.place_initial(conf.initial_placement.clone(), words)?;
+        let words = crossword.place_initial(&conf.initial_placement, words)?;
 
         let max_words = conf.max_words;
 
@@ -369,7 +368,7 @@ impl Crossword {
 
     fn place_initial(
         &mut self,
-        initial_placement_conf: Option<CrosswordInitialPlacement>,
+        initial_placement_conf: &Option<CrosswordInitialPlacement>,
         words: Vec<Word>,
     ) -> Result<Vec<Word>, CrosswordError> {
         // Extract the initial placement instructions or generate them from defaults
@@ -387,8 +386,8 @@ impl Crossword {
                     MIN_LETTER_COUNT
                 };
 
-                let initial_strat = if let Some(strat) = ip.strategy {
-                    strat.clone()
+                let initial_strat = if let Some(strat) = ip.strategy.clone() {
+                    strat
                 } else {
                     CrosswordInitialPlacementStrategy::default()
                 };
@@ -405,17 +404,25 @@ impl Crossword {
             None => Err(CrosswordError::NoValidInitialWords),
             Some(word) => {
                 let mut word = word;
-                while !self.try_initial_placement(min_letter_count, &strategy, &word) {
-                    skipped_words.push(word);
+                loop {
+                    match self.try_initial_placement(min_letter_count, &strategy, word) {
+                        Ok(_) => {
+                            break;
+                        }
 
-                    match words.pop() {
-                        None => {
-                            return Err(CrosswordError::NoValidInitialWords);
+                        Err(w) => {
+                            skipped_words.push(w);
+
+                            match words.pop() {
+                                None => {
+                                    return Err(CrosswordError::NoValidInitialWords);
+                                }
+                                Some(w) => {
+                                    word = w;
+                                }
+                            }
                         }
-                        Some(w) => {
-                            word = w;
-                        }
-                    }
+                    };
                 }
 
                 skipped_words.reverse();
@@ -430,8 +437,8 @@ impl Crossword {
         &mut self,
         min_letter_count: usize,
         strategy: &CrosswordInitialPlacementStrategy,
-        word: &Word,
-    ) -> bool {
+        word: Word,
+    ) -> Result<(), Word> {
         let max_letter_count = match strategy.direction() {
             Direction::Horizontal => self.width,
             Direction::Verticle => self.height,
@@ -439,7 +446,7 @@ impl Crossword {
 
         let count = word.text.chars().count();
         if count < min_letter_count && count > max_letter_count {
-            return false;
+            return Err(word);
         };
 
         match strategy {
@@ -494,89 +501,66 @@ impl Crossword {
                         }
                     }
                 };
-                self._place(word.clone(), mid_x, mid_y, w_mid, direction.clone());
-                true
+                self._place(word, mid_x, mid_y, w_mid, &direction);
+                Ok(())
             }
             CrosswordInitialPlacementStrategy::Custom(placement) => {
                 if placement.x >= self.width {
-                    return false;
+                    return Err(word);
                 }
 
                 if placement.y >= self.height {
-                    return false;
+                    return Err(word);
                 }
 
                 match placement.direction {
                     Direction::Horizontal => {
                         if placement.x + count > self.width {
-                            return false;
+                            return Err(word);
                         }
                     }
                     Direction::Verticle => {
                         if placement.y + count > self.height {
-                            return false;
+                            return Err(word);
                         }
                     }
                 }
 
-                self._place(
-                    word.clone(),
-                    placement.x,
-                    placement.y,
-                    0,
-                    placement.direction.clone(),
-                );
+                self._place(word, placement.x, placement.y, 0, &placement.direction);
 
-                true
+                Ok(())
             }
             CrosswordInitialPlacementStrategy::LowerLeft(direction) => {
                 match direction {
                     Direction::Horizontal => {
-                        self._place(word.clone(), 0, self.height - 1, 0, direction.clone());
+                        self._place(word, 0, self.height - 1, 0, &direction);
                     }
                     Direction::Verticle => {
-                        self._place(
-                            word.clone(),
-                            0,
-                            self.height - 1,
-                            count - 1,
-                            direction.clone(),
-                        );
+                        self._place(word, 0, self.height - 1, count - 1, &direction);
                     }
                 }
-                true
+
+                Ok(())
             }
             CrosswordInitialPlacementStrategy::LowerRight(direction) => {
-                self._place(
-                    word.clone(),
-                    self.width - 1,
-                    self.height - 1,
-                    count - 1,
-                    direction.clone(),
-                );
+                self._place(word, self.width - 1, self.height - 1, count - 1, &direction);
 
-                true
+                Ok(())
             }
             CrosswordInitialPlacementStrategy::UpperLeft(direction) => {
-                self._place(word.clone(), 0, 0, 0, direction.clone());
-                true
+                self._place(word, 0, 0, 0, &direction);
+                Ok(())
             }
             CrosswordInitialPlacementStrategy::UpperRight(direction) => {
                 match direction {
                     Direction::Horizontal => {
-                        self._place(
-                            word.clone(),
-                            self.width - 1,
-                            0,
-                            count - 1,
-                            direction.clone(),
-                        );
+                        self._place(word, self.width - 1, 0, count - 1, &direction);
                     }
                     Direction::Verticle => {
-                        self._place(word.clone(), self.width - 1, 0, 0, direction.clone());
+                        self._place(word, self.width - 1, 0, 0, &direction);
                     }
                 }
-                true
+                Ok(())
             }
         }
     }
@@ -722,7 +706,7 @@ impl Crossword {
         let placement_direction = self.can_place(&word, x, y, intersection_index);
 
         if let Some(direction) = placement_direction {
-            self._place(word, x, y, intersection_index, direction);
+            self._place(word, x, y, intersection_index, &direction);
             Ok(())
         } else {
             Err(CrosswordError::BadFit)
@@ -737,7 +721,7 @@ impl Crossword {
         x: usize,
         y: usize,
         intersection_index: usize,
-        direction: Direction,
+        direction: &Direction,
     ) {
         let origin = if let Direction::Horizontal = direction {
             x
@@ -774,7 +758,7 @@ impl Crossword {
         };
 
         let placement = Placement {
-            direction,
+            direction: direction.clone(),
             x: placement_x,
             y: placement_y,
         };
