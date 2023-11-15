@@ -65,6 +65,15 @@ impl Distribution<Direction> for Standard {
     }
 }
 
+// Placement describes a location on the crossword puzzle.
+#[derive(Clone, Deserialize, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct Placement {
+    pub x: usize,
+    pub y: usize,
+    pub direction: Direction,
+}
+
 // PlacedWord represents a word which makes up the crossword puzzle's answers
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -92,15 +101,6 @@ impl CrosswordRow {
 
         CrosswordRow { row }
     }
-}
-
-// Placement describes a location on the crossword puzzle.
-#[derive(Clone, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
-pub struct Placement {
-    pub x: usize,
-    pub y: usize,
-    pub direction: Direction,
 }
 
 // Crossword represents a complete crossword puzzle structure. Does not include stateful
@@ -225,23 +225,26 @@ pub struct CrosswordConf {
     pub height: usize,
     // Optional requirements for the puzzle, if a generated puzzle does not meet these
     // then a retry is initiated, the CrosswordReqs structure requires a max_retries field
-    // be specified to avoid the classic problems with recursion
+    // be specified to avoid retrying infinitly
     pub requirements: Option<CrosswordReqs>,
     // Optional requirements for the initial placement, allowing a caller to specify where and
     // how large the inital word placed should be.
     pub initial_placement: Option<CrosswordInitialPlacement>,
 }
 
-// This is the way calling applications should construct Crossword structs
+// This is the way calling applications should construct Crossword structs when using WASM.
 #[wasm_bindgen]
-pub fn new_crossword(conf: CrosswordConf) -> Result<Crossword, JsError> {
+pub fn wasm_crossword_generate(conf: CrosswordConf) -> Result<Crossword, JsError> {
     // This call improves err handling on the JS side.
     // This fn should be the entry point from WASM so it makes sense to call this here.
     set_panic_hook();
     Crossword::new(conf).map_err(|e| JsError::new(&e.to_string()))
 }
 
-// NOTE: This impl has no pub fns, it's used by new_crossword
+pub fn crossword_generate(conf: CrosswordConf) -> Result<Crossword, CrosswordError> {
+    Crossword::new(conf)
+}
+
 #[wasm_bindgen]
 impl Crossword {
     fn new(conf: CrosswordConf) -> Result<Crossword, CrosswordError> {
@@ -501,7 +504,7 @@ impl Crossword {
                         }
                     }
                 };
-                self._place(word, mid_x, mid_y, w_mid, &direction);
+                self._place(word, mid_x, mid_y, w_mid, direction);
                 Ok(())
             }
             CrosswordInitialPlacementStrategy::Custom(placement) => {
@@ -533,31 +536,31 @@ impl Crossword {
             CrosswordInitialPlacementStrategy::LowerLeft(direction) => {
                 match direction {
                     Direction::Horizontal => {
-                        self._place(word, 0, self.height - 1, 0, &direction);
+                        self._place(word, 0, self.height - 1, 0, direction);
                     }
                     Direction::Verticle => {
-                        self._place(word, 0, self.height - 1, count - 1, &direction);
+                        self._place(word, 0, self.height - 1, count - 1, direction);
                     }
                 }
 
                 Ok(())
             }
             CrosswordInitialPlacementStrategy::LowerRight(direction) => {
-                self._place(word, self.width - 1, self.height - 1, count - 1, &direction);
+                self._place(word, self.width - 1, self.height - 1, count - 1, direction);
 
                 Ok(())
             }
             CrosswordInitialPlacementStrategy::UpperLeft(direction) => {
-                self._place(word, 0, 0, 0, &direction);
+                self._place(word, 0, 0, 0, direction);
                 Ok(())
             }
             CrosswordInitialPlacementStrategy::UpperRight(direction) => {
                 match direction {
                     Direction::Horizontal => {
-                        self._place(word, self.width - 1, 0, count - 1, &direction);
+                        self._place(word, self.width - 1, 0, count - 1, direction);
                     }
                     Direction::Verticle => {
-                        self._place(word, self.width - 1, 0, 0, &direction);
+                        self._place(word, self.width - 1, 0, 0, direction);
                     }
                 }
                 Ok(())
