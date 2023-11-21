@@ -132,6 +132,13 @@ pub enum CrosswordError {
     InsufficientPuzzle,
 }
 
+#[allow(clippy::from_over_into)]
+impl std::convert::Into<JsValue> for CrosswordError {
+    fn into(self) -> JsValue {
+        JsValue::from_str(&self.to_string())
+    }
+}
+
 // CrosswordReqs is a structure holding requirements the final puzzle must meet such as...
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -234,14 +241,10 @@ pub struct CrosswordConf {
 
 // This is the way calling applications should construct Crossword structs when using WASM.
 #[wasm_bindgen]
-pub fn wasm_crossword_generate(conf: CrosswordConf) -> Result<Crossword, JsError> {
+pub fn wasm_crossword_generate(conf: CrosswordConf) -> Result<Crossword, CrosswordError> {
     // This call improves err handling on the JS side.
     // This fn should be the entry point from WASM so it makes sense to call this here.
     set_panic_hook();
-    Crossword::new(conf).map_err(|e| JsError::new(&e.to_string()))
-}
-
-pub fn crossword_generate(conf: CrosswordConf) -> Result<Crossword, CrosswordError> {
     Crossword::new(conf)
 }
 
