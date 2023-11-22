@@ -1,4 +1,4 @@
-import init, {InitInput, wasm_crossword_generate} from "./pkg/wasm_crossword_gen.js";
+import init, {new_crossword, InitInput} from "./pkg/wasm_crossword_gen.js";
 
 // There is some weirdness around re-exporting types using rollup, see:
 // https://github.com/rollup/plugins/issues/71
@@ -37,6 +37,6 @@ export class CrosswordClient {
 	}
 
 	public generate_crossword_puzzle = (conf: CrosswordConf): Crossword => {
-		return wasm_crossword_generate(conf);
+		return new_crossword(conf);
 	}
 }

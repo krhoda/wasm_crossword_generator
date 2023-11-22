@@ -1,5 +1,4 @@
 mod utils;
-
 use rand::{
     distributions::{Distribution, Standard},
     seq::SliceRandom,
@@ -11,11 +10,13 @@ use std::{
     collections::HashSet,
 };
 use thiserror::Error;
+
+// TODO: Add optional compilation.
 use tsify::Tsify;
 use utils::set_panic_hook;
 use wasm_bindgen::prelude::*;
 
-/* Uncomment for Debug
+/* Uncomment for WASM in-browser debug
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = console)]
@@ -132,6 +133,7 @@ pub enum CrosswordError {
     InsufficientPuzzle,
 }
 
+// TODO: Make optional compilation for WASM only.
 #[allow(clippy::from_over_into)]
 impl std::convert::Into<JsValue> for CrosswordError {
     fn into(self) -> JsValue {
@@ -239,18 +241,18 @@ pub struct CrosswordConf {
     pub initial_placement: Option<CrosswordInitialPlacement>,
 }
 
+// TODO: Make this optionally compiled.
 // This is the way calling applications should construct Crossword structs when using WASM.
 #[wasm_bindgen]
-pub fn wasm_crossword_generate(conf: CrosswordConf) -> Result<Crossword, CrosswordError> {
+pub fn new_crossword(conf: CrosswordConf) -> Result<Crossword, CrosswordError> {
     // This call improves err handling on the JS side.
     // This fn should be the entry point from WASM so it makes sense to call this here.
     set_panic_hook();
     Crossword::new(conf)
 }
 
-#[wasm_bindgen]
 impl Crossword {
-    fn new(conf: CrosswordConf) -> Result<Crossword, CrosswordError> {
+    pub fn new(conf: CrosswordConf) -> Result<Crossword, CrosswordError> {
         if let Ok(crossword) = Crossword::generate(conf.clone()) {
             return Ok(crossword);
         } else if let Some(reqs) = &conf.requirements {
@@ -507,7 +509,7 @@ impl Crossword {
                         }
                     }
                 };
-                self._place(word, mid_x, mid_y, w_mid, direction);
+                self._unchecked_place(word, mid_x, mid_y, w_mid, direction);
                 Ok(())
             }
             CrosswordInitialPlacementStrategy::Custom(placement) => {
@@ -532,38 +534,38 @@ impl Crossword {
                     }
                 }
 
-                self._place(word, placement.x, placement.y, 0, &placement.direction);
+                self._unchecked_place(word, placement.x, placement.y, 0, &placement.direction);
 
                 Ok(())
             }
             CrosswordInitialPlacementStrategy::LowerLeft(direction) => {
                 match direction {
                     Direction::Horizontal => {
-                        self._place(word, 0, self.height - 1, 0, direction);
+                        self._unchecked_place(word, 0, self.height - 1, 0, direction);
                     }
                     Direction::Verticle => {
-                        self._place(word, 0, self.height - 1, count - 1, direction);
+                        self._unchecked_place(word, 0, self.height - 1, count - 1, direction);
                     }
                 }
 
                 Ok(())
             }
             CrosswordInitialPlacementStrategy::LowerRight(direction) => {
-                self._place(word, self.width - 1, self.height - 1, count - 1, direction);
+                self._unchecked_place(word, self.width - 1, self.height - 1, count - 1, direction);
 
                 Ok(())
             }
             CrosswordInitialPlacementStrategy::UpperLeft(direction) => {
-                self._place(word, 0, 0, 0, direction);
+                self._unchecked_place(word, 0, 0, 0, direction);
                 Ok(())
             }
             CrosswordInitialPlacementStrategy::UpperRight(direction) => {
                 match direction {
                     Direction::Horizontal => {
-                        self._place(word, self.width - 1, 0, count - 1, direction);
+                        self._unchecked_place(word, self.width - 1, 0, count - 1, direction);
                     }
                     Direction::Verticle => {
-                        self._place(word, self.width - 1, 0, 0, direction);
+                        self._unchecked_place(word, self.width - 1, 0, 0, direction);
                     }
                 }
                 Ok(())
@@ -712,16 +714,16 @@ impl Crossword {
         let placement_direction = self.can_place(&word, x, y, intersection_index);
 
         if let Some(direction) = placement_direction {
-            self._place(word, x, y, intersection_index, &direction);
+            self._unchecked_place(word, x, y, intersection_index, &direction);
             Ok(())
         } else {
             Err(CrosswordError::BadFit)
         }
     }
 
-    // _place bypasses any checks on validity and is only useful for the initial placement
-    // but is called by place for simplicity.
-    fn _place(
+    // _unchecked_place bypasses any checks on validity and is only useful for the
+    // initial placement
+    fn _unchecked_place(
         &mut self,
         word: Word,
         x: usize,

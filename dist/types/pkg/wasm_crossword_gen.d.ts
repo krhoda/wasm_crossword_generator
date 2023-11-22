@@ -4,7 +4,7 @@
 * @param {CrosswordConf} conf
 * @returns {Crossword}
 */
-export function wasm_crossword_generate(conf: CrosswordConf): Crossword;
+export function new_crossword(conf: CrosswordConf): Crossword;
 export interface Word {
     text: string;
     clue: string | null;
@@ -63,7 +63,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly wasm_crossword_generate: (a: number, b: number) => void;
+  readonly new_crossword: (a: number, b: number) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
