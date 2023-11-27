@@ -11,12 +11,15 @@ use std::{
 };
 use thiserror::Error;
 
-// TODO: Add optional compilation.
+#[cfg(target_arch = "wasm32")]
 use tsify::Tsify;
+#[cfg(target_arch = "wasm32")]
 use utils::set_panic_hook;
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
 /* Uncomment for WASM in-browser debug
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = console)]
@@ -31,16 +34,24 @@ const MIN_LETTER_COUNT: usize = 3;
 // Word is a record containing a potential portion of the Crossword answer at "text"
 // along with an optional "clue" field.
 // The "text" field will be split using .chars() with all the implications that brings.
-#[derive(Clone, Deserialize, Eq, Hash, PartialEq, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Clone, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
 pub struct Word {
     pub text: String,
     pub clue: Option<String>,
 }
 
 // Direction is used to determine the orientation of the word.
-#[derive(Clone, Debug, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
 pub enum Direction {
     Horizontal,
     Verticle,
@@ -67,8 +78,12 @@ impl Distribution<Direction> for Standard {
 }
 
 // Placement describes a location on the crossword puzzle.
-#[derive(Clone, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Clone, Deserialize, Serialize)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
 pub struct Placement {
     pub x: usize,
     pub y: usize,
@@ -76,8 +91,12 @@ pub struct Placement {
 }
 
 // PlacedWord represents a word which makes up the crossword puzzle's answers
-#[derive(Clone, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Clone, Deserialize, Serialize)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
 pub struct PlacedWord {
     pub placement: Placement,
     pub word: Word,
@@ -86,8 +105,12 @@ pub struct PlacedWord {
 // CrosswordRow represents of one row of a crossword answer
 // Within the interior "row" vector, there is either a None for a blank space
 // or a Some(c) where c: char which would be a component of the crossword solution.
-#[derive(Clone, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Clone, Deserialize, Serialize)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
 pub struct CrosswordRow {
     pub row: Vec<Option<char>>,
 }
@@ -106,8 +129,12 @@ impl CrosswordRow {
 
 // Solution represents a complete crossword puzzle structure. Does not include stateful
 // constructs for user input, just represents the static structure and answers.
-#[derive(Clone, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Clone, Deserialize, Serialize)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
 pub struct Solution {
     pub puzzle: Vec<CrosswordRow>,
     pub words: Vec<PlacedWord>,
@@ -133,7 +160,7 @@ pub enum CrosswordError {
     InsufficientPuzzle,
 }
 
-// TODO: Make optional compilation for WASM only.
+#[cfg(target_arch = "wasm32")]
 #[allow(clippy::from_over_into)]
 impl std::convert::Into<JsValue> for CrosswordError {
     fn into(self) -> JsValue {
@@ -142,8 +169,12 @@ impl std::convert::Into<JsValue> for CrosswordError {
 }
 
 // CrosswordReqs is a structure holding requirements the final puzzle must meet such as...
-#[derive(Clone, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Clone, Deserialize, Serialize)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
 pub struct CrosswordReqs {
     // ... how many times to attempt to make a valid puzzle before erroring out ...
     pub max_retries: usize, // NOTE: This is the only required one
@@ -158,8 +189,12 @@ pub struct CrosswordReqs {
 }
 
 // CrosswordInitialPlacementStrategy allows the caller to specifiy how to begin the crossword
-#[derive(Clone, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Clone, Deserialize, Serialize)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
 pub enum CrosswordInitialPlacementStrategy {
     Center(Direction),
     Custom(Placement),
@@ -203,8 +238,12 @@ impl std::default::Default for CrosswordInitialPlacementStrategy {
 
 // CrosswordInitialPlacement allows the caller to specify where and how large the initial word
 // placed should be
-#[derive(Clone, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Clone, Deserialize, Serialize)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
 pub struct CrosswordInitialPlacement {
     // This differs from CrosswordReq's min_letters_per_word by only applying to the initial word
     pub min_letter_count: Option<usize>,
@@ -221,8 +260,12 @@ impl std::default::Default for CrosswordInitialPlacement {
 }
 
 // SolutionConf is the structure used to generate crossword puzzles.
-#[derive(Clone, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Clone, Deserialize, Serialize)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
 pub struct SolutionConf {
     // The possible words to use to construct the puzzle
     pub words: Vec<Word>,
@@ -241,8 +284,8 @@ pub struct SolutionConf {
     pub initial_placement: Option<CrosswordInitialPlacement>,
 }
 
-// TODO: Make this optionally compiled.
-// This is the way calling applications should construct Solution structs when using WASM.
+// This is the way JS/WASM applications should construct Solution structs
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn new_solution(conf: SolutionConf) -> Result<Solution, CrosswordError> {
     // This call improves err handling on the JS side.
