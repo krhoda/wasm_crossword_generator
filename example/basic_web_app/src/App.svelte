@@ -1,15 +1,15 @@
 <script lang="ts">
   import {CrosswordClient} from "wasm_crossword_gen";
-  import type {CrosswordConf, Crossword} from "wasm_crossword_gen";
+  import type {SolutionConf, Solution} from "wasm_crossword_gen";
 
   import {writable} from "svelte/store";
   import type {Writable} from "svelte/store";
 
-  let puzzle: Writable<Crossword> = writable(null);
-  let _puzzle: Crossword = null;
+  let puzzle: Writable<Solution> = writable(null);
+  let _puzzle: Solution = null;
   puzzle.subscribe((x) => (_puzzle = x));
 
-  let conf: CrosswordConf = {
+  let conf: SolutionConf = {
 	height: 10,
 	width: 10,
 	max_words: 15,
@@ -87,7 +87,7 @@
 
   CrosswordClient.initialize().then((client) => {
 	try {
-	  let p = client.generate_crossword_puzzle(conf);
+	  let p = client.generate_crossword_solution(conf);
 	  console.log(p);
 	  console.log("Is updated");
 	  puzzle.set(p);

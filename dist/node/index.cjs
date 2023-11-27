@@ -116,13 +116,13 @@ function getInt32Memory0() {
     return cachedInt32Memory0;
 }
 /**
-* @param {CrosswordConf} conf
-* @returns {Crossword}
+* @param {SolutionConf} conf
+* @returns {Solution}
 */
-function new_crossword(conf) {
+function new_solution(conf) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        wasm.new_crossword(retptr, addHeapObject(conf));
+        wasm.new_solution(retptr, addHeapObject(conf));
         var r0 = getInt32Memory0()[retptr / 4 + 0];
         var r1 = getInt32Memory0()[retptr / 4 + 1];
         var r2 = getInt32Memory0()[retptr / 4 + 2];
@@ -369,8 +369,8 @@ const setWasmInit = (arg) => {
 let initialized = undefined;
 class CrosswordClient {
     constructor() {
-        this.generate_crossword_puzzle = (conf) => {
-            return new_crossword(conf);
+        this.generate_crossword_solution = (conf) => {
+            return new_solution(conf);
         };
     }
 }

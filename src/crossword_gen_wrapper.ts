@@ -1,4 +1,4 @@
-import init, {new_crossword, InitInput} from "./pkg/wasm_crossword_gen.js";
+import init, {new_solution, InitInput} from "./pkg/wasm_crossword_gen.js";
 
 // There is some weirdness around re-exporting types using rollup, see:
 // https://github.com/rollup/plugins/issues/71
@@ -8,8 +8,8 @@ export type Direction = import("./pkg/wasm_crossword_gen.js").Direction;
 export type PlacedWord = import("./pkg/wasm_crossword_gen.js").PlacedWord;
 export type CrosswordRow = import("./pkg/wasm_crossword_gen.js").CrosswordRow;
 export type Placement = import("./pkg/wasm_crossword_gen.js").Placement;
-export type CrosswordConf = import("./pkg/wasm_crossword_gen.js").CrosswordConf;
-export type Crossword = import("./pkg/wasm_crossword_gen.js").Crossword;
+export type SolutionConf = import("./pkg/wasm_crossword_gen.js").SolutionConf;
+export type Solution = import("./pkg/wasm_crossword_gen.js").Solution;
 
 export type LoadOpts =  {
 	wasm?: InitInput
@@ -36,7 +36,7 @@ export class CrosswordClient {
 		return new CrosswordClient();
 	}
 
-	public generate_crossword_puzzle = (conf: CrosswordConf): Crossword => {
-		return new_crossword(conf);
+	public generate_crossword_solution = (conf: SolutionConf): Solution => {
+		return new_solution(conf);
 	}
 }

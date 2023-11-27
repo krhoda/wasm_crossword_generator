@@ -104,11 +104,11 @@ impl CrosswordRow {
     }
 }
 
-// Crossword represents a complete crossword puzzle structure. Does not include stateful
+// Solution represents a complete crossword puzzle structure. Does not include stateful
 // constructs for user input, just represents the static structure and answers.
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
-pub struct Crossword {
+pub struct Solution {
     pub puzzle: Vec<CrosswordRow>,
     pub words: Vec<PlacedWord>,
     width: usize,
@@ -220,10 +220,10 @@ impl std::default::Default for CrosswordInitialPlacement {
     }
 }
 
-// CrosswordConf is the structure used to generate crossword puzzles.
+// SolutionConf is the structure used to generate crossword puzzles.
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
-pub struct CrosswordConf {
+pub struct SolutionConf {
     // The possible words to use to construct the puzzle
     pub words: Vec<Word>,
     // Maximum words for the puzzle
@@ -242,23 +242,23 @@ pub struct CrosswordConf {
 }
 
 // TODO: Make this optionally compiled.
-// This is the way calling applications should construct Crossword structs when using WASM.
+// This is the way calling applications should construct Solution structs when using WASM.
 #[wasm_bindgen]
-pub fn new_crossword(conf: CrosswordConf) -> Result<Crossword, CrosswordError> {
+pub fn new_solution(conf: SolutionConf) -> Result<Solution, CrosswordError> {
     // This call improves err handling on the JS side.
     // This fn should be the entry point from WASM so it makes sense to call this here.
     set_panic_hook();
-    Crossword::new(conf)
+    Solution::new(conf)
 }
 
-impl Crossword {
-    pub fn new(conf: CrosswordConf) -> Result<Crossword, CrosswordError> {
-        if let Ok(crossword) = Crossword::generate(conf.clone()) {
+impl Solution {
+    pub fn new(conf: SolutionConf) -> Result<Solution, CrosswordError> {
+        if let Ok(crossword) = Solution::generate(conf.clone()) {
             return Ok(crossword);
         } else if let Some(reqs) = &conf.requirements {
             let mut attempt = 0;
             while attempt < reqs.max_retries {
-                if let Ok(crossword) = Crossword::generate(conf.clone()) {
+                if let Ok(crossword) = Solution::generate(conf.clone()) {
                     return Ok(crossword);
                 } else {
                     attempt += 1;
@@ -269,8 +269,8 @@ impl Crossword {
         Err(CrosswordError::MaxRetries)
     }
 
-    fn generate(conf: CrosswordConf) -> Result<Crossword, CrosswordError> {
-        let mut crossword = Crossword::new_empty(conf.width, conf.height);
+    fn generate(conf: SolutionConf) -> Result<Solution, CrosswordError> {
+        let mut crossword = Solution::new_empty(conf.width, conf.height);
 
         // Check the config for a min letter count, otherwise set to the constant.
         let min_letter_count = if let Some(reqs) = &conf.requirements {
@@ -327,7 +327,7 @@ impl Crossword {
             // try using each letter in the word to find a valid overlap on the puzzle.
             for (intersection_index, letter) in word.text.chars().enumerate() {
                 // Was the word placed at the using current intersection index?
-                if Crossword::place_word(&mut crossword, intersection_index, &word, &letter)
+                if Solution::place_word(&mut crossword, intersection_index, &word, &letter)
                     .is_some()
                 {
                     // If so, try to place next word.
@@ -575,14 +575,14 @@ impl Crossword {
 
     // This will return Some(()) if the letter was placed.
     fn place_word(
-        crossword: &mut Crossword,
+        crossword: &mut Solution,
         intersection_index: usize,
         word: &Word,
         letter: &char,
     ) -> Option<()> {
         let temp = crossword.clone();
         for (row_count, _) in temp.puzzle.iter().enumerate() {
-            if Crossword::place_on_row(crossword, row_count, intersection_index, word, letter)
+            if Solution::place_on_row(crossword, row_count, intersection_index, word, letter)
                 .is_some()
             {
                 return Some(());
@@ -594,7 +594,7 @@ impl Crossword {
 
     // This will return Some(()) if the letter was placed.
     fn place_on_row(
-        crossword: &mut Crossword,
+        crossword: &mut Solution,
         row_count: usize,
         intersection_index: usize,
         word: &Word,
@@ -602,7 +602,7 @@ impl Crossword {
     ) -> Option<()> {
         let temp = crossword.clone();
         for (col_count, _) in temp.puzzle[row_count].row.iter().enumerate() {
-            if Crossword::place_on_column(
+            if Solution::place_on_column(
                 crossword,
                 col_count,
                 row_count,
@@ -621,7 +621,7 @@ impl Crossword {
 
     // This will return Some(()) if the letter was placed.
     fn place_on_column(
-        crossword: &mut Crossword,
+        crossword: &mut Solution,
         col_count: usize,
         row_count: usize,
         intersection_index: usize,
@@ -642,14 +642,14 @@ impl Crossword {
     }
 
     // Returns an empty crossword at the given w x h
-    fn new_empty(width: usize, height: usize) -> Crossword {
+    fn new_empty(width: usize, height: usize) -> Solution {
         let mut puzzle = Vec::<CrosswordRow>::new();
 
         for _ in 0..height {
             puzzle.push(CrosswordRow::new(width))
         }
 
-        Crossword {
+        Solution {
             puzzle,
             words: Vec::<PlacedWord>::new(),
             width,

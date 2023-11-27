@@ -1,10 +1,10 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
-* @param {CrosswordConf} conf
-* @returns {Crossword}
+* @param {SolutionConf} conf
+* @returns {Solution}
 */
-export function new_crossword(conf: CrosswordConf): Crossword;
+export function new_solution(conf: SolutionConf): Solution;
 export interface Word {
     text: string;
     clue: string | null;
@@ -27,7 +27,7 @@ export interface CrosswordRow {
     row: (string | null)[];
 }
 
-export interface Crossword {
+export interface Solution {
     puzzle: CrosswordRow[];
     words: PlacedWord[];
     width: number;
@@ -49,7 +49,7 @@ export interface CrosswordInitialPlacement {
     strategy: CrosswordInitialPlacementStrategy | null;
 }
 
-export interface CrosswordConf {
+export interface SolutionConf {
     words: Word[];
     max_words: number;
     width: number;
@@ -63,7 +63,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly new_crossword: (a: number, b: number) => void;
+  readonly new_solution: (a: number, b: number) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
