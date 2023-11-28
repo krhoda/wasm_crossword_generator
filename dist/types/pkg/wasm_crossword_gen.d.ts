@@ -1,13 +1,13 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
-*/
-export function set_panic_hook(): void;
-/**
 * @param {SolutionConf} conf
 * @returns {Solution}
 */
 export function new_solution(conf: SolutionConf): Solution;
+/**
+*/
+export function set_panic_hook(): void;
 export interface Word {
     text: string;
     clue: string | null;
@@ -66,8 +66,8 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly set_panic_hook: () => void;
   readonly new_solution: (a: number, b: number) => void;
+  readonly set_panic_hook: () => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_add_to_stack_pointer: (a: number) => number;

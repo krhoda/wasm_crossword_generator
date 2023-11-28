@@ -116,12 +116,6 @@ function getInt32Memory0() {
     return cachedInt32Memory0;
 }
 /**
-*/
-function set_panic_hook() {
-    wasm.set_panic_hook();
-}
-
-/**
 * @param {SolutionConf} conf
 * @returns {Solution}
 */
@@ -139,6 +133,12 @@ function new_solution(conf) {
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
     }
+}
+
+/**
+*/
+function set_panic_hook() {
+    wasm.set_panic_hook();
 }
 
 function handleError(f, args) {

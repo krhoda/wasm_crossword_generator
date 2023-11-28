@@ -14,27 +14,6 @@ use thiserror::Error;
 use tsify::Tsify;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
-// This should be called from the JS side's initialization
-pub fn set_panic_hook() {
-    // When the `console_error_panic_hook` feature is enabled, we can call the
-    // `set_panic_hook` function at least once during initialization, and then
-    // we will get better error messages if our code ever panics.
-    //
-    // For more details see
-    // https://github.com/rustwasm/console_error_panic_hook#readme
-    console_error_panic_hook::set_once();
-}
-
-/* Uncomment for WASM in-browser debug
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
-}
-*/
 
 // If a word is smaller than three letters, it will make the crossword generation work less well.
 // Defined as a constant to avoid magic numbers. Callers can provide largerr minimums.
@@ -169,14 +148,6 @@ pub enum CrosswordError {
     InsufficientPuzzle,
 }
 
-#[cfg(target_arch = "wasm32")]
-#[allow(clippy::from_over_into)]
-impl std::convert::Into<JsValue> for CrosswordError {
-    fn into(self) -> JsValue {
-        JsValue::from_str(&self.to_string())
-    }
-}
-
 // CrosswordReqs is a structure holding requirements the final puzzle must meet such as...
 #[derive(Clone, Deserialize, Serialize)]
 #[cfg_attr(
@@ -291,13 +262,6 @@ pub struct SolutionConf {
     // Optional requirements for the initial placement, allowing a caller to specify where and
     // how large the inital word placed should be.
     pub initial_placement: Option<CrosswordInitialPlacement>,
-}
-
-// This is the way JS/WASM applications should construct Solution structs
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
-pub fn new_solution(conf: SolutionConf) -> Result<Solution, CrosswordError> {
-    Solution::new(conf)
 }
 
 impl Solution {
@@ -978,4 +942,40 @@ impl Solution {
 
         true
     }
+}
+
+// WASM SPECIFIC STUFF
+
+/* Uncomment for WASM in-browser debug
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+}
+*/
+
+#[cfg(target_arch = "wasm32")]
+#[allow(clippy::from_over_into)]
+impl std::convert::Into<JsValue> for CrosswordError {
+    fn into(self) -> JsValue {
+        JsValue::from_str(&self.to_string())
+    }
+}
+
+// This is the only way JS/WASM applications can construct Solution structs
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn new_solution(conf: SolutionConf) -> Result<Solution, CrosswordError> {
+    Solution::new(conf)
+}
+
+// This is a debug feature that is called from <repo>/src/crossword_gen_wrapper.ts
+// It improves the quality of error messages that are printed to the dev console
+// For more details see
+// https://github.com/rustwasm/console_error_panic_hook#readme
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn set_panic_hook() {
+    console_error_panic_hook::set_once();
 }
