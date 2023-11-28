@@ -1,4 +1,4 @@
-import init, {new_solution, InitInput} from "./pkg/wasm_crossword_gen.js";
+import init, {set_panic_hook, new_solution, InitInput} from "./pkg/wasm_crossword_gen.js";
 
 // There is some weirdness around re-exporting types using rollup, see:
 // https://github.com/rollup/plugins/issues/71
@@ -33,6 +33,7 @@ export class CrosswordClient {
 		}
 
 		await initialized;
+		set_panic_hook();
 		return new CrosswordClient();
 	}
 

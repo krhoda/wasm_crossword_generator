@@ -116,6 +116,12 @@ function getInt32Memory0() {
     return cachedInt32Memory0;
 }
 /**
+*/
+function set_panic_hook() {
+    wasm.set_panic_hook();
+}
+
+/**
 * @param {SolutionConf} conf
 * @returns {Solution}
 */
@@ -382,6 +388,7 @@ CrosswordClient.initialize = async (options) => {
         initialized = __wbg_init(loadModule).then(() => void 0);
     }
     await initialized;
+    set_panic_hook();
     return new CrosswordClient();
 };
 

@@ -1,4 +1,3 @@
-mod utils;
 use rand::{
     distributions::{Distribution, Standard},
     seq::SliceRandom,
@@ -14,9 +13,19 @@ use thiserror::Error;
 #[cfg(target_arch = "wasm32")]
 use tsify::Tsify;
 #[cfg(target_arch = "wasm32")]
-use utils::set_panic_hook;
-#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+// This should be called from the JS side's initialization
+pub fn set_panic_hook() {
+    // When the `console_error_panic_hook` feature is enabled, we can call the
+    // `set_panic_hook` function at least once during initialization, and then
+    // we will get better error messages if our code ever panics.
+    //
+    // For more details see
+    // https://github.com/rustwasm/console_error_panic_hook#readme
+    console_error_panic_hook::set_once();
+}
 
 /* Uncomment for WASM in-browser debug
 #[cfg(target_arch = "wasm32")]
@@ -288,9 +297,6 @@ pub struct SolutionConf {
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn new_solution(conf: SolutionConf) -> Result<Solution, CrosswordError> {
-    // This call improves err handling on the JS side.
-    // This fn should be the entry point from WASM so it makes sense to call this here.
-    set_panic_hook();
     Solution::new(conf)
 }
 
