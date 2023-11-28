@@ -30,13 +30,6 @@ export interface CrosswordRow {
     row: (string | null)[];
 }
 
-export interface Solution {
-    puzzle: CrosswordRow[];
-    words: PlacedWord[];
-    width: number;
-    height: number;
-}
-
 export interface CrosswordReqs {
     max_retries: number;
     min_letters_per_word: number | null;
@@ -59,6 +52,13 @@ export interface SolutionConf {
     height: number;
     requirements: CrosswordReqs | null;
     initial_placement: CrosswordInitialPlacement | null;
+}
+
+export interface Solution {
+    puzzle: CrosswordRow[];
+    words: PlacedWord[];
+    width: number;
+    height: number;
 }
 
 

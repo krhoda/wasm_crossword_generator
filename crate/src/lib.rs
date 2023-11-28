@@ -15,8 +15,10 @@ use tsify::Tsify;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-// If a word is smaller than three letters, it will make the crossword generation work less well.
-// Defined as a constant to avoid magic numbers. Callers can provide largerr minimums.
+// !!! Building Blocks !!!
+
+// If a word is smaller than three letters, it could potentially break crossword generation.
+// Defined as a constant to avoid magic numbers. Callers can provide larger minimums.
 const MIN_LETTER_COUNT: usize = 3;
 
 // Word is a record containing a potential portion of the Crossword answer at "text"
@@ -34,7 +36,7 @@ pub struct Word {
 }
 
 // Direction is used to determine the orientation of the word.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -65,8 +67,8 @@ impl Distribution<Direction> for Standard {
     }
 }
 
-// Placement describes a location on the crossword puzzle.
-#[derive(Clone, Deserialize, Serialize)]
+// Placement describes a location on the crossword puzzle. Used to mark word origins.
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -79,7 +81,8 @@ pub struct Placement {
 }
 
 // PlacedWord represents a word which makes up the crossword puzzle's answers
-#[derive(Clone, Deserialize, Serialize)]
+// The placement field marks the origin and orientation of the word.
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -90,10 +93,10 @@ pub struct PlacedWord {
     pub word: Word,
 }
 
-// CrosswordRow represents of one row of a crossword answer
+// CrosswordRow represents of one row of a crossword solution
 // Within the interior "row" vector, there is either a None for a blank space
 // or a Some(c) where c: char which would be a component of the crossword solution.
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -115,21 +118,6 @@ impl CrosswordRow {
     }
 }
 
-// Solution represents a complete crossword puzzle structure. Does not include stateful
-// constructs for user input, just represents the static structure and answers.
-#[derive(Clone, Deserialize, Serialize)]
-#[cfg_attr(
-    target_arch = "wasm32",
-    derive(Tsify),
-    tsify(into_wasm_abi, from_wasm_abi)
-)]
-pub struct Solution {
-    pub puzzle: Vec<CrosswordRow>,
-    pub words: Vec<PlacedWord>,
-    width: usize,
-    height: usize,
-}
-
 // CrosswordError is what it says on the tin. Often ellided over in favor of retrying, which if
 // fails, throws CrosswordError::MaxRetries.
 #[derive(Error, Debug)]
@@ -144,9 +132,15 @@ pub enum CrosswordError {
     PointOutOfBounds,
     #[error("no valid inital words")]
     NoValidInitialWords,
-    #[error("did not meet requirements")]
+    #[error("generated puzzle did not meet requirements")]
     InsufficientPuzzle,
+    #[error("cannot generate valid puzzle from list of words")]
+    BadConfig,
+    #[error("puzzle doesn't match list of words")]
+    WordMismatch,
 }
+
+// !!! User Configuration !!!
 
 // CrosswordReqs is a structure holding requirements the final puzzle must meet such as...
 #[derive(Clone, Deserialize, Serialize)]
@@ -239,7 +233,7 @@ impl std::default::Default for CrosswordInitialPlacement {
     }
 }
 
-// SolutionConf is the structure used to generate crossword puzzles.
+// SolutionConf is the structure used to configure the generation crossword solutions.
 #[derive(Clone, Deserialize, Serialize)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -264,6 +258,23 @@ pub struct SolutionConf {
     pub initial_placement: Option<CrosswordInitialPlacement>,
 }
 
+// !!! Solution Generation and Stateful Puzzles !!!
+
+// Solution represents a complete crossword structure. Does not include stateful
+// constructs for user input.
+#[derive(Clone, Deserialize, Serialize)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
+pub struct Solution {
+    pub puzzle: Vec<CrosswordRow>,
+    pub words: Vec<PlacedWord>,
+    width: usize,
+    height: usize,
+}
+
 impl Solution {
     pub fn new(conf: SolutionConf) -> Result<Solution, CrosswordError> {
         if let Ok(crossword) = Solution::generate(conf.clone()) {
@@ -272,7 +283,9 @@ impl Solution {
             let mut attempt = 0;
             while attempt < reqs.max_retries {
                 if let Ok(crossword) = Solution::generate(conf.clone()) {
-                    return Ok(crossword);
+                    if crossword.is_valid().is_ok() {
+                        return Ok(crossword);
+                    }
                 } else {
                     attempt += 1;
                 }
@@ -280,6 +293,29 @@ impl Solution {
         }
 
         Err(CrosswordError::MaxRetries)
+    }
+
+    // Useful for testing deserialized Solutions from external sources.
+    // Also used as a sanity check in the new function
+    pub fn is_valid(&self) -> Result<(), CrosswordError> {
+        let mut crossword = Solution::new_empty(self.width, self.height);
+        for word in self.words.iter() {
+            if !crossword._checked_place(
+                word.word.clone(),
+                word.placement.x,
+                word.placement.y,
+                0,
+                &word.placement.direction,
+            ) {
+                return Err(CrosswordError::BadConfig);
+            };
+        }
+
+        if crossword.puzzle != self.puzzle {
+            return Err(CrosswordError::WordMismatch);
+        }
+
+        Ok(())
     }
 
     fn generate(conf: SolutionConf) -> Result<Solution, CrosswordError> {
@@ -717,7 +753,7 @@ impl Solution {
         y: usize,
         intersection_index: usize,
     ) -> Result<(), CrosswordError> {
-        if x > (self.width - 1) || y > (self.height - 1) {
+        if x >= self.width || y >= self.height {
             return Err(CrosswordError::PointOutOfBounds);
         }
 
@@ -830,7 +866,6 @@ impl Solution {
         } else {
             y
         };
-
         // Would the word go over the top or the left of the puzzle's bounds?
         match intersection_index.cmp(&origin) {
             // Check the space beyond the beginning of the word to make sure it's empty.
@@ -848,8 +883,7 @@ impl Solution {
             Ordering::Equal => {}
             // The word goes over the edge of the board.
             Ordering::Greater => return false,
-        };
-
+        }
         let edge = if let Direction::Horizontal = direction {
             self.width - 1
         } else {
@@ -876,6 +910,7 @@ impl Solution {
             Ordering::Greater => return false,
         }
 
+        // Is there correct spacing around the word?
         for (letter_count, letter) in word.text.chars().enumerate() {
             let next_index = match letter_count.cmp(&intersection_index) {
                 Ordering::Less => origin - (intersection_index - letter_count),
@@ -942,9 +977,26 @@ impl Solution {
 
         true
     }
+
+    // Used for testing validity for structs that are supplied externally.
+    fn _checked_place(
+        &mut self,
+        word: Word,
+        x: usize,
+        y: usize,
+        intersection_index: usize,
+        direction: &Direction,
+    ) -> bool {
+        if self._can_place(&word, x, y, intersection_index, direction) {
+            self._unchecked_place(word, x, y, intersection_index, direction);
+            true
+        } else {
+            false
+        }
+    }
 }
 
-// WASM SPECIFIC STUFF
+// !!! WASM Specific Stuff !!!
 
 /* Uncomment for WASM in-browser debug
 #[cfg(target_arch = "wasm32")]
