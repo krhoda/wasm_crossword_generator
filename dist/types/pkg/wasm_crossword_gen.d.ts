@@ -55,10 +55,19 @@ export interface SolutionConf {
 }
 
 export interface Solution {
-    puzzle: CrosswordRow[];
+    grid: CrosswordRow[];
     words: PlacedWord[];
     width: number;
     height: number;
+}
+
+export interface Puzzle {
+    solution: Solution;
+    player_answers: PlacedWord[];
+}
+
+export interface ClassicPuzzle {
+    puzzle: Puzzle;
 }
 
 

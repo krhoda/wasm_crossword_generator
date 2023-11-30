@@ -138,6 +138,10 @@ pub enum CrosswordError {
     BadConfig,
     #[error("puzzle doesn't match list of words")]
     WordMismatch,
+    #[error("player guess word's placement cannot be found")]
+    InvalidPlayerGuess,
+    #[error("more guesses than words")]
+    MoreGuessesThanWords,
 }
 
 // !!! User Configuration !!!
@@ -262,14 +266,14 @@ pub struct SolutionConf {
 
 // Solution represents a complete crossword structure. Does not include stateful
 // constructs for user input.
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub struct Solution {
-    pub puzzle: Vec<CrosswordRow>,
+    pub grid: Vec<CrosswordRow>,
     pub words: Vec<PlacedWord>,
     width: usize,
     height: usize,
@@ -300,7 +304,7 @@ impl Solution {
     pub fn is_valid(&self) -> Result<(), CrosswordError> {
         let mut crossword = Solution::new_empty(self.width, self.height);
         for word in self.words.iter() {
-            if !crossword._checked_place(
+            if !crossword.checked_place(
                 word.word.clone(),
                 word.placement.x,
                 word.placement.y,
@@ -311,7 +315,7 @@ impl Solution {
             };
         }
 
-        if crossword.puzzle != self.puzzle {
+        if crossword.grid != self.grid {
             return Err(CrosswordError::WordMismatch);
         }
 
@@ -635,7 +639,7 @@ impl Solution {
         letter: &char,
     ) -> Option<()> {
         let temp = crossword.clone();
-        for (row_count, _) in temp.puzzle.iter().enumerate() {
+        for (row_count, _) in temp.grid.iter().enumerate() {
             if Solution::place_on_row(crossword, row_count, intersection_index, word, letter)
                 .is_some()
             {
@@ -655,7 +659,7 @@ impl Solution {
         letter: &char,
     ) -> Option<()> {
         let temp = crossword.clone();
-        for (col_count, _) in temp.puzzle[row_count].row.iter().enumerate() {
+        for (col_count, _) in temp.grid[row_count].row.iter().enumerate() {
             if Solution::place_on_column(
                 crossword,
                 col_count,
@@ -682,7 +686,7 @@ impl Solution {
         word: &Word,
         letter: &char,
     ) -> Option<()> {
-        if let Some(c) = crossword.puzzle[row_count].row[col_count] {
+        if let Some(c) = crossword.grid[row_count].row[col_count] {
             if &c == letter
                 && crossword
                     .place(word.clone(), col_count, row_count, intersection_index)
@@ -697,14 +701,14 @@ impl Solution {
 
     // Returns an empty crossword at the given w x h
     fn new_empty(width: usize, height: usize) -> Solution {
-        let mut puzzle = Vec::<CrosswordRow>::new();
+        let mut grid = Vec::<CrosswordRow>::new();
 
         for _ in 0..height {
-            puzzle.push(CrosswordRow::new(width))
+            grid.push(CrosswordRow::new(width))
         }
 
         Solution {
-            puzzle,
+            grid,
             words: Vec::<PlacedWord>::new(),
             width,
             height,
@@ -716,7 +720,7 @@ impl Solution {
         let mut acc = 0;
         for i in 0..self.width {
             let mut is_empty = true;
-            for row in self.puzzle.clone() {
+            for row in self.grid.clone() {
                 if row.row[i].is_some() {
                     is_empty = false;
                     break;
@@ -734,7 +738,7 @@ impl Solution {
     // returns a count of completely empty rows
     fn empty_rows(&self) -> usize {
         let mut acc = 0;
-        for row in self.puzzle.clone() {
+        for row in self.grid.clone() {
             let mut is_empty = true;
             for space in row.row {
                 if space.is_some() {
@@ -801,10 +805,10 @@ impl Solution {
 
             match direction {
                 Direction::Horizontal => {
-                    self.puzzle[y].row[next_index] = Some(letter);
+                    self.grid[y].row[next_index] = Some(letter);
                 }
                 Direction::Verticle => {
-                    self.puzzle[next_index].row[x] = Some(letter);
+                    self.grid[next_index].row[x] = Some(letter);
                 }
             };
         }
@@ -871,13 +875,13 @@ impl Solution {
         } else {
             y
         };
-        // Would the word go over the top or the left of the puzzle's bounds?
+        // Would the word go over the top or the left of the grid's bounds?
         match intersection_index.cmp(&origin) {
             // Check the space beyond the beginning of the word to make sure it's empty.
             Ordering::Less => {
                 let prefix = match direction {
-                    Direction::Horizontal => self.puzzle[y].row[origin - intersection_index - 1],
-                    Direction::Verticle => self.puzzle[origin - intersection_index - 1].row[x],
+                    Direction::Horizontal => self.grid[y].row[origin - intersection_index - 1],
+                    Direction::Verticle => self.grid[origin - intersection_index - 1].row[x],
                 };
 
                 if prefix.is_some() {
@@ -896,13 +900,13 @@ impl Solution {
         };
 
         let remainder = last_index - intersection_index;
-        // Would the word go over the bottom or the right of the puzzle's bounds?
+        // Would the word go over the bottom or the right of the grid's bounds?
         match (origin + remainder).cmp(&edge) {
             // Check the space beyond the end of the word to make sure it's empty.
             Ordering::Less => {
                 let suffix = match direction {
-                    Direction::Horizontal => self.puzzle[y].row[origin + remainder + 1],
-                    Direction::Verticle => self.puzzle[origin + remainder + 1].row[x],
+                    Direction::Horizontal => self.grid[y].row[origin + remainder + 1],
+                    Direction::Verticle => self.grid[origin + remainder + 1].row[x],
                 };
 
                 if suffix.is_some() {
@@ -926,14 +930,14 @@ impl Solution {
             let above_or_before = match direction {
                 Direction::Horizontal => {
                     if y != 0 {
-                        self.puzzle[y - 1].row[next_index]
+                        self.grid[y - 1].row[next_index]
                     } else {
                         None
                     }
                 }
                 Direction::Verticle => {
                     if x != 0 {
-                        self.puzzle[next_index].row[x - 1]
+                        self.grid[next_index].row[x - 1]
                     } else {
                         None
                     }
@@ -943,7 +947,7 @@ impl Solution {
             let below_or_after = match direction {
                 Direction::Horizontal => {
                     if y < edge {
-                        self.puzzle[y + 1].row[next_index]
+                        self.grid[y + 1].row[next_index]
                     } else {
                         None
                     }
@@ -951,7 +955,7 @@ impl Solution {
 
                 Direction::Verticle => {
                     if x < edge {
-                        self.puzzle[next_index].row[x + 1]
+                        self.grid[next_index].row[x + 1]
                     } else {
                         None
                     }
@@ -959,8 +963,8 @@ impl Solution {
             };
 
             let space = match direction {
-                Direction::Horizontal => self.puzzle[y].row[next_index],
-                Direction::Verticle => self.puzzle[next_index].row[x],
+                Direction::Horizontal => self.grid[y].row[next_index],
+                Direction::Verticle => self.grid[next_index].row[x],
             };
 
             match space {
@@ -984,7 +988,7 @@ impl Solution {
     }
 
     // Used for testing validity for structs that are supplied externally.
-    fn _checked_place(
+    fn checked_place(
         &mut self,
         word: Word,
         x: usize,
@@ -998,6 +1002,112 @@ impl Solution {
         } else {
             false
         }
+    }
+}
+
+// Puzzle is a stateful game composed of a solution and a list of answers.
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
+pub struct Puzzle {
+    pub solution: Solution,
+    pub player_answers: Vec<PlacedWord>,
+}
+
+impl Puzzle {
+    pub fn new(conf: SolutionConf) -> Result<Puzzle, CrosswordError> {
+        Ok(Puzzle {
+            solution: Solution::new(conf)?,
+            player_answers: Vec::new(),
+        })
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
+pub struct ClassicPuzzle {
+    pub puzzle: Puzzle,
+}
+
+impl ClassicPuzzle {
+    pub fn new(conf: SolutionConf) -> Result<ClassicPuzzle, CrosswordError> {
+        Ok(ClassicPuzzle {
+            puzzle: Puzzle::new(conf)?,
+        })
+    }
+
+    pub fn guess(&mut self, word: PlacedWord) -> Result<(), CrosswordError> {
+        // Is this a valid guess?
+        if !self
+            .puzzle
+            .solution
+            .words
+            .iter()
+            .any(|w| w.placement == word.placement)
+        {
+            return Err(CrosswordError::InvalidPlayerGuess);
+        }
+
+        // Remove previous guess at placement
+        self.puzzle
+            .player_answers
+            .retain(|w| w.placement != word.placement);
+
+        // Push new guess
+        self.puzzle.player_answers.push(word);
+
+        Ok(())
+    }
+
+    pub fn is_complete(&self) -> Result<bool, CrosswordError> {
+        let a = self.puzzle.player_answers.len();
+        let b = self.puzzle.solution.words.len();
+        if a < b {
+            // The user needs to add more answers.
+            return Ok(false);
+        } else if self.puzzle.player_answers.len() > self.puzzle.solution.words.len() {
+            // More answers than the crossword provides space for have been recorded.
+            return Err(CrosswordError::MoreGuessesThanWords);
+        }
+
+        // Are all the user's answers right?
+        Ok(self
+            .puzzle
+            .player_answers
+            .iter()
+            .all(|word| self.puzzle.solution.words.contains(word)))
+    }
+
+    // Returns all user answers that are incorrect, along with the coresponding correction
+    pub fn wrong_answers_and_solutions(
+        &self,
+    ) -> Result<Vec<(PlacedWord, PlacedWord)>, CrosswordError> {
+        let mut result: Vec<(PlacedWord, PlacedWord)> = Vec::new();
+        for word in self.puzzle.player_answers.iter() {
+            if !self.puzzle.solution.words.contains(word) {
+                let correction = if let Some(c) = self
+                    .puzzle
+                    .solution
+                    .words
+                    .iter()
+                    .find(|w| w.placement == word.placement)
+                {
+                    c.clone()
+                } else {
+                    return Err(CrosswordError::InvalidPlayerGuess);
+                };
+                result.push((word.clone(), correction));
+            }
+        }
+
+        Ok(result)
     }
 }
 
