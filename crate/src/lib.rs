@@ -1024,6 +1024,48 @@ impl Puzzle {
             player_answers: Vec::new(),
         })
     }
+
+    pub fn is_complete(&self) -> Result<bool, CrosswordError> {
+        let a = self.player_answers.len();
+        let b = self.solution.words.len();
+        if a < b {
+            // The user needs to add more answers.
+            return Ok(false);
+        } else if self.player_answers.len() > self.solution.words.len() {
+            // More answers than the crossword provides space for have been recorded.
+            return Err(CrosswordError::MoreGuessesThanWords);
+        }
+
+        // Are all the user's answers right?
+        Ok(self
+            .player_answers
+            .iter()
+            .all(|word| self.solution.words.contains(word)))
+    }
+
+    // Returns all user answers that are incorrect, along with the coresponding correction
+    pub fn wrong_answers_and_solutions(
+        &self,
+    ) -> Result<Vec<(PlacedWord, PlacedWord)>, CrosswordError> {
+        let mut result: Vec<(PlacedWord, PlacedWord)> = Vec::new();
+        for word in self.player_answers.iter() {
+            if !self.solution.words.contains(word) {
+                let correction = if let Some(c) = self
+                    .solution
+                    .words
+                    .iter()
+                    .find(|w| w.placement == word.placement)
+                {
+                    c.clone()
+                } else {
+                    return Err(CrosswordError::InvalidPlayerGuess);
+                };
+                result.push((word.clone(), correction));
+            }
+        }
+
+        Ok(result)
+    }
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
@@ -1055,59 +1097,133 @@ impl ClassicPuzzle {
             return Err(CrosswordError::InvalidPlayerGuess);
         }
 
-        // Remove previous guess at placement
+        // Remove previous guess at placement if exists
         self.puzzle
             .player_answers
             .retain(|w| w.placement != word.placement);
 
-        // Push new guess
         self.puzzle.player_answers.push(word);
 
         Ok(())
     }
+}
 
-    pub fn is_complete(&self) -> Result<bool, CrosswordError> {
-        let a = self.puzzle.player_answers.len();
-        let b = self.puzzle.solution.words.len();
-        if a < b {
-            // The user needs to add more answers.
-            return Ok(false);
-        } else if self.puzzle.player_answers.len() > self.puzzle.solution.words.len() {
-            // More answers than the crossword provides space for have been recorded.
-            return Err(CrosswordError::MoreGuessesThanWords);
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
+pub struct PlacedWordPuzzle {
+    pub puzzle: Puzzle,
+}
+
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
+pub enum GuessResult {
+    Complete,
+    Correct,
+    Invalid,
+    Repeat,
+    Wrong,
+}
+
+impl PlacedWordPuzzle {
+    pub fn new(conf: SolutionConf) -> Result<PlacedWordPuzzle, CrosswordError> {
+        Ok(PlacedWordPuzzle {
+            puzzle: Puzzle::new(conf)?,
+        })
+    }
+
+    pub fn guess_word(&mut self, word: PlacedWord) -> GuessResult {
+        match self.puzzle.is_complete() {
+            Ok(b) => {
+                if b {
+                    return GuessResult::Complete;
+                }
+            }
+            Err(_) => return GuessResult::Invalid,
         }
 
-        // Are all the user's answers right?
-        Ok(self
+        let correct = if let Some(c) = self
+            .puzzle
+            .solution
+            .words
+            .iter()
+            .find(|w| w.placement == word.placement)
+        {
+            c.clone()
+        } else {
+            return GuessResult::Invalid;
+        };
+
+        if correct == word {
+            self.puzzle.player_answers.push(word);
+            match self.puzzle.is_complete() {
+                Ok(b) => {
+                    if b {
+                        GuessResult::Complete
+                    } else {
+                        GuessResult::Correct
+                    }
+                }
+                Err(_) => GuessResult::Invalid,
+            }
+        } else {
+            GuessResult::Wrong
+        }
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
+pub struct PerWordPuzzle {
+    pub puzzle: Puzzle,
+}
+impl PerWordPuzzle {
+    pub fn new(conf: SolutionConf) -> Result<PerWordPuzzle, CrosswordError> {
+        Ok(PerWordPuzzle {
+            puzzle: Puzzle::new(conf)?,
+        })
+    }
+
+    pub fn guess_word(&mut self, word: PlacedWord) -> GuessResult {
+        match self.puzzle.is_complete() {
+            Ok(b) => {
+                if b {
+                    return GuessResult::Complete;
+                };
+            }
+            Err(_) => return GuessResult::Invalid,
+        }
+
+        if self
             .puzzle
             .player_answers
             .iter()
-            .all(|word| self.puzzle.solution.words.contains(word)))
-    }
-
-    // Returns all user answers that are incorrect, along with the coresponding correction
-    pub fn wrong_answers_and_solutions(
-        &self,
-    ) -> Result<Vec<(PlacedWord, PlacedWord)>, CrosswordError> {
-        let mut result: Vec<(PlacedWord, PlacedWord)> = Vec::new();
-        for word in self.puzzle.player_answers.iter() {
-            if !self.puzzle.solution.words.contains(word) {
-                let correction = if let Some(c) = self
-                    .puzzle
-                    .solution
-                    .words
-                    .iter()
-                    .find(|w| w.placement == word.placement)
-                {
-                    c.clone()
-                } else {
-                    return Err(CrosswordError::InvalidPlayerGuess);
-                };
-                result.push((word.clone(), correction));
-            }
+            .any(|w| w.word.text == word.word.text)
+        {
+            GuessResult::Repeat
+        } else if let Some(c) = self
+            .puzzle
+            .solution
+            .words
+            .iter()
+            .find(|w| w.word.text == word.word.text)
+        {
+            self.puzzle.player_answers.push(c.clone());
+            GuessResult::Correct
+        } else {
+            GuessResult::Wrong
         }
-
-        Ok(result)
     }
 }
 

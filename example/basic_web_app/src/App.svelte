@@ -101,7 +101,7 @@
   <p>This should be a crossword: </p>
   {#if _puzzle}
 	<div class="puzzle-container">
-	  {#each _puzzle.puzzle as row}
+	  {#each _puzzle.grid as row}
 		<!-- <div class="puzzle-row"> -->
 		{#each row.row as column}
 		  <div class="puzzle-item"> {column ?? "*"} </div>

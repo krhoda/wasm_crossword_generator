@@ -70,6 +70,16 @@ export interface ClassicPuzzle {
     puzzle: Puzzle;
 }
 
+export interface PlacedWordPuzzle {
+    puzzle: Puzzle;
+}
+
+export type GuessResult = "Complete" | "Correct" | "Invalid" | "Repeat" | "Wrong";
+
+export interface PerWordPuzzle {
+    puzzle: Puzzle;
+}
+
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
