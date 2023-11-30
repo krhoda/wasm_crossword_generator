@@ -506,6 +506,11 @@ impl Solution {
             return Err(word);
         };
 
+        // To avoid magic numbers:
+        let max_x = self.width - 1;
+        let max_y = self.height - 1;
+        let last_index = count - 1;
+
         match strategy {
             CrosswordInitialPlacementStrategy::Center(direction) => {
                 // This gets a little tricky, but basically if the height / width / count
@@ -590,17 +595,17 @@ impl Solution {
             CrosswordInitialPlacementStrategy::LowerLeft(direction) => {
                 match direction {
                     Direction::Horizontal => {
-                        self._unchecked_place(word, 0, self.height - 1, 0, direction);
+                        self._unchecked_place(word, 0, max_y, 0, direction);
                     }
                     Direction::Verticle => {
-                        self._unchecked_place(word, 0, self.height - 1, count - 1, direction);
+                        self._unchecked_place(word, 0, max_y, last_index, direction);
                     }
                 }
 
                 Ok(())
             }
             CrosswordInitialPlacementStrategy::LowerRight(direction) => {
-                self._unchecked_place(word, self.width - 1, self.height - 1, count - 1, direction);
+                self._unchecked_place(word, max_x, max_y, last_index, direction);
 
                 Ok(())
             }
@@ -611,10 +616,10 @@ impl Solution {
             CrosswordInitialPlacementStrategy::UpperRight(direction) => {
                 match direction {
                     Direction::Horizontal => {
-                        self._unchecked_place(word, self.width - 1, 0, count - 1, direction);
+                        self._unchecked_place(word, max_x, 0, last_index, direction);
                     }
                     Direction::Verticle => {
-                        self._unchecked_place(word, self.width - 1, 0, 0, direction);
+                        self._unchecked_place(word, max_x, 0, 0, direction);
                     }
                 }
                 Ok(())
