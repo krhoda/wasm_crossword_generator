@@ -6,6 +6,28 @@
 */
 export function new_solution(conf: SolutionConf): Solution;
 /**
+* @param {SolutionConf} conf
+* @param {PuzzleType} puzzle_type
+* @returns {PuzzleContainer}
+*/
+export function new_puzzle(conf: SolutionConf, puzzle_type: PuzzleType): PuzzleContainer;
+/**
+* @param {PuzzleContainer} puzzle_container
+* @returns {PuzzleCompleteContainer}
+*/
+export function is_puzzle_complete(puzzle_container: PuzzleContainer): PuzzleCompleteContainer;
+/**
+* @param {PuzzleContainer} puzzle_container
+* @returns {WrongAnswersContainer}
+*/
+export function wrong_answers_and_solutions(puzzle_container: PuzzleContainer): WrongAnswersContainer;
+/**
+* @param {PuzzleContainer} puzzle_container
+* @param {PlacedWord} guess
+* @returns {PuzzleAndResult}
+*/
+export function guess_word(puzzle_container: PuzzleContainer, guess: PlacedWord): PuzzleAndResult;
+/**
 */
 export function set_panic_hook(): void;
 export interface Word {
@@ -66,6 +88,8 @@ export interface Puzzle {
     player_answers: PlacedWord[];
 }
 
+export type GuessResult = "Complete" | "Correct" | "InvalidPlacement" | "InvalidTooManyAnswers" | "Repeat" | "Unchecked" | "Wrong";
+
 export interface ClassicPuzzle {
     puzzle: Puzzle;
 }
@@ -74,10 +98,35 @@ export interface PlacedWordPuzzle {
     puzzle: Puzzle;
 }
 
-export type GuessResult = "Complete" | "Correct" | "Invalid" | "Repeat" | "Wrong";
-
 export interface PerWordPuzzle {
     puzzle: Puzzle;
+}
+
+export type PuzzleType = "Classic" | "PlacedWord" | "PerWord";
+
+export interface PuzzleContainer {
+    puzzle_type: PuzzleType;
+    puzzle: Puzzle;
+}
+
+export interface PuzzleCompleteContainer {
+    puzzle_container: PuzzleContainer;
+    is_complete: boolean;
+}
+
+export interface WrongAnswerPair {
+    got: PlacedWord;
+    wanted: PlacedWord;
+}
+
+export interface WrongAnswersContainer {
+    puzzle_container: PuzzleContainer;
+    wrong_answer_pairs: WrongAnswerPair[];
+}
+
+export interface PuzzleAndResult {
+    puzzle_container: PuzzleContainer;
+    guess_result: GuessResult;
 }
 
 
@@ -86,6 +135,10 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly new_solution: (a: number, b: number) => void;
+  readonly new_puzzle: (a: number, b: number, c: number) => void;
+  readonly is_puzzle_complete: (a: number, b: number) => void;
+  readonly wrong_answers_and_solutions: (a: number, b: number) => void;
+  readonly guess_word: (a: number, b: number) => number;
   readonly set_panic_hook: () => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

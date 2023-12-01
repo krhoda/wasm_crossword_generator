@@ -1074,6 +1074,29 @@ impl Puzzle {
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
+pub enum GuessResult {
+    Complete,
+    Correct,
+    InvalidPlacement,
+    InvalidTooManyAnswers,
+    Repeat,
+    Unchecked,
+    Wrong,
+}
+
+pub trait Playmode
+where
+    Self: Sized,
+{
+    fn guess_word(&mut self, word: PlacedWord) -> GuessResult;
+}
+
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
 pub struct ClassicPuzzle {
     pub puzzle: Puzzle,
 }
@@ -1084,8 +1107,10 @@ impl ClassicPuzzle {
             puzzle: Puzzle::new(conf)?,
         })
     }
+}
 
-    pub fn guess(&mut self, word: PlacedWord) -> Result<(), CrosswordError> {
+impl Playmode for ClassicPuzzle {
+    fn guess_word(&mut self, word: PlacedWord) -> GuessResult {
         // Is this a valid guess?
         if !self
             .puzzle
@@ -1094,7 +1119,7 @@ impl ClassicPuzzle {
             .iter()
             .any(|w| w.placement == word.placement)
         {
-            return Err(CrosswordError::InvalidPlayerGuess);
+            return GuessResult::InvalidPlacement;
         }
 
         // Remove previous guess at placement if exists
@@ -1104,7 +1129,7 @@ impl ClassicPuzzle {
 
         self.puzzle.player_answers.push(word);
 
-        Ok(())
+        GuessResult::Unchecked
     }
 }
 
@@ -1118,35 +1143,23 @@ pub struct PlacedWordPuzzle {
     pub puzzle: Puzzle,
 }
 
-#[derive(Clone, Deserialize, Serialize, PartialEq)]
-#[cfg_attr(
-    target_arch = "wasm32",
-    derive(Tsify),
-    tsify(into_wasm_abi, from_wasm_abi)
-)]
-pub enum GuessResult {
-    Complete,
-    Correct,
-    Invalid,
-    Repeat,
-    Wrong,
-}
-
 impl PlacedWordPuzzle {
-    pub fn new(conf: SolutionConf) -> Result<PlacedWordPuzzle, CrosswordError> {
+    fn new(conf: SolutionConf) -> Result<PlacedWordPuzzle, CrosswordError> {
         Ok(PlacedWordPuzzle {
             puzzle: Puzzle::new(conf)?,
         })
     }
+}
 
-    pub fn guess_word(&mut self, word: PlacedWord) -> GuessResult {
+impl Playmode for PlacedWordPuzzle {
+    fn guess_word(&mut self, word: PlacedWord) -> GuessResult {
         match self.puzzle.is_complete() {
             Ok(b) => {
                 if b {
                     return GuessResult::Complete;
                 }
             }
-            Err(_) => return GuessResult::Invalid,
+            Err(_) => return GuessResult::InvalidTooManyAnswers,
         }
 
         let correct = if let Some(c) = self
@@ -1158,7 +1171,7 @@ impl PlacedWordPuzzle {
         {
             c.clone()
         } else {
-            return GuessResult::Invalid;
+            return GuessResult::InvalidPlacement;
         };
 
         if correct == word {
@@ -1171,7 +1184,7 @@ impl PlacedWordPuzzle {
                         GuessResult::Correct
                     }
                 }
-                Err(_) => GuessResult::Invalid,
+                Err(_) => GuessResult::InvalidTooManyAnswers,
             }
         } else {
             GuessResult::Wrong
@@ -1188,21 +1201,24 @@ impl PlacedWordPuzzle {
 pub struct PerWordPuzzle {
     pub puzzle: Puzzle,
 }
+
 impl PerWordPuzzle {
     pub fn new(conf: SolutionConf) -> Result<PerWordPuzzle, CrosswordError> {
         Ok(PerWordPuzzle {
             puzzle: Puzzle::new(conf)?,
         })
     }
+}
 
-    pub fn guess_word(&mut self, word: PlacedWord) -> GuessResult {
+impl Playmode for PerWordPuzzle {
+    fn guess_word(&mut self, word: PlacedWord) -> GuessResult {
         match self.puzzle.is_complete() {
             Ok(b) => {
                 if b {
                     return GuessResult::Complete;
                 };
             }
-            Err(_) => return GuessResult::Invalid,
+            Err(_) => return GuessResult::InvalidTooManyAnswers,
         }
 
         if self
@@ -1251,6 +1267,141 @@ impl std::convert::Into<JsValue> for CrosswordError {
 #[wasm_bindgen]
 pub fn new_solution(conf: SolutionConf) -> Result<Solution, CrosswordError> {
     Solution::new(conf)
+}
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub enum PuzzleType {
+    Classic,
+    PlacedWord,
+    PerWord,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct PuzzleContainer {
+    puzzle_type: PuzzleType,
+    puzzle: Puzzle,
+}
+
+// This is the only way JS/WASM applications can construct Puzzle structs
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn new_puzzle(
+    conf: SolutionConf,
+    puzzle_type: PuzzleType,
+) -> Result<PuzzleContainer, CrosswordError> {
+    Ok(PuzzleContainer {
+        puzzle_type,
+        puzzle: Puzzle::new(conf)?,
+    })
+}
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct PuzzleCompleteContainer {
+    pub puzzle_container: PuzzleContainer,
+    pub is_complete: bool,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn is_puzzle_complete(
+    puzzle_container: PuzzleContainer,
+) -> Result<PuzzleCompleteContainer, CrosswordError> {
+    let is_complete = puzzle_container.puzzle.is_complete()?;
+    Ok(PuzzleCompleteContainer {
+        puzzle_container,
+        is_complete,
+    })
+}
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct WrongAnswerPair {
+    pub got: PlacedWord,
+    pub wanted: PlacedWord,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct WrongAnswersContainer {
+    pub puzzle_container: PuzzleContainer,
+    pub wrong_answer_pairs: Vec<WrongAnswerPair>,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn wrong_answers_and_solutions(
+    puzzle_container: PuzzleContainer,
+) -> Result<WrongAnswersContainer, CrosswordError> {
+    let wrong_answer_pairs = puzzle_container
+        .puzzle
+        .wrong_answers_and_solutions()?
+        .into_iter()
+        .map(|(got, wanted)| WrongAnswerPair { got, wanted })
+        .collect();
+
+    Ok(WrongAnswersContainer {
+        puzzle_container,
+        wrong_answer_pairs,
+    })
+}
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct PuzzleAndResult {
+    puzzle_container: PuzzleContainer,
+    guess_result: GuessResult,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn guess_word(puzzle_container: PuzzleContainer, guess: PlacedWord) -> PuzzleAndResult {
+    let puzzle_type = puzzle_container.puzzle_type;
+    let (puzzle, guess_result) = match puzzle_type {
+        PuzzleType::Classic => {
+            let mut classic = ClassicPuzzle {
+                puzzle: puzzle_container.puzzle,
+            };
+
+            // NOTE: because guess_word is a mutation, we do it before returning the var
+            let res = classic.guess_word(guess);
+            (classic.puzzle, res)
+        }
+        PuzzleType::PlacedWord => {
+            let mut placed_word = PlacedWordPuzzle {
+                puzzle: puzzle_container.puzzle,
+            };
+
+            // NOTE: because guess_word is a mutation, we do it before returning the var
+            let res = placed_word.guess_word(guess);
+            (placed_word.puzzle, res)
+        }
+        PuzzleType::PerWord => {
+            let mut per_word = PerWordPuzzle {
+                puzzle: puzzle_container.puzzle,
+            };
+
+            // NOTE: because guess_word is a mutation, we do it before returning the var
+            let res = per_word.guess_word(guess);
+            (per_word.puzzle, res)
+        }
+    };
+
+    PuzzleAndResult {
+        puzzle_container: PuzzleContainer {
+            puzzle_type,
+            puzzle,
+        },
+        guess_result,
+    }
 }
 
 // This is a debug feature that is called from <repo>/src/crossword_gen_wrapper.ts
