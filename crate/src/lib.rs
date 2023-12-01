@@ -1144,7 +1144,7 @@ pub struct PlacedWordPuzzle {
 }
 
 impl PlacedWordPuzzle {
-    fn new(conf: SolutionConf) -> Result<PlacedWordPuzzle, CrosswordError> {
+    pub fn new(conf: SolutionConf) -> Result<PlacedWordPuzzle, CrosswordError> {
         Ok(PlacedWordPuzzle {
             puzzle: Puzzle::new(conf)?,
         })

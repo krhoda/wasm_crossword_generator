@@ -87,10 +87,31 @@
 
   CrosswordClient.initialize().then((client) => {
 	try {
-	  let p = client.generate_crossword_solution(conf);
-	  console.log(p);
-	  console.log("Is updated");
-	  puzzle.set(p);
+	  let puzzle_container = client.generate_crossword_puzzle(conf, "PlacedWord");
+	  console.log(puzzle_container);
+	  // TODO: Update to be the full puzzle not just solution.
+	  puzzle.set(puzzle_container.puzzle.solution);
+
+	  let guess_result;
+	  for (let i = 0, x = puzzle_container.puzzle.solution.words.length; i < x; i++) {
+		let word = puzzle_container.puzzle.solution.words[i];
+		let res = client.guess_word(puzzle_container, word);
+		puzzle_container = res.puzzle_container;
+		let guess_result = res.guess_result;
+
+		if (guess_result !== "Correct" && guess_result !== "Complete") {
+		  console.log("Got Bad Result:", guess_result, word)
+		}
+	  }
+
+	  let res = client.is_puzzle_complete(puzzle_container);
+	  puzzle_container = res.puzzle_container;
+	  if (res.is_complete) {
+		console.log("Success!")
+		console.log(puzzle_container);
+	  } else {
+		console.log("Failure!")
+	  }
 	} catch (e) {
 	  console.error(e);
 	}

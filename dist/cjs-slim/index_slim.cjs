@@ -136,6 +136,77 @@ function new_solution(conf) {
 }
 
 /**
+* @param {SolutionConf} conf
+* @param {PuzzleType} puzzle_type
+* @returns {PuzzleContainer}
+*/
+function new_puzzle(conf, puzzle_type) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        wasm.new_puzzle(retptr, addHeapObject(conf), addHeapObject(puzzle_type));
+        var r0 = getInt32Memory0()[retptr / 4 + 0];
+        var r1 = getInt32Memory0()[retptr / 4 + 1];
+        var r2 = getInt32Memory0()[retptr / 4 + 2];
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return takeObject(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+* @param {PuzzleContainer} puzzle_container
+* @returns {PuzzleCompleteContainer}
+*/
+function is_puzzle_complete(puzzle_container) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        wasm.is_puzzle_complete(retptr, addHeapObject(puzzle_container));
+        var r0 = getInt32Memory0()[retptr / 4 + 0];
+        var r1 = getInt32Memory0()[retptr / 4 + 1];
+        var r2 = getInt32Memory0()[retptr / 4 + 2];
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return takeObject(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+* @param {PuzzleContainer} puzzle_container
+* @returns {WrongAnswersContainer}
+*/
+function wrong_answers_and_solutions(puzzle_container) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        wasm.wrong_answers_and_solutions(retptr, addHeapObject(puzzle_container));
+        var r0 = getInt32Memory0()[retptr / 4 + 0];
+        var r1 = getInt32Memory0()[retptr / 4 + 1];
+        var r2 = getInt32Memory0()[retptr / 4 + 2];
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return takeObject(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+* @param {PuzzleContainer} puzzle_container
+* @param {PlacedWord} guess
+* @returns {PuzzleAndResult}
+*/
+function guess_word(puzzle_container, guess) {
+    const ret = wasm.guess_word(addHeapObject(puzzle_container), addHeapObject(guess));
+    return takeObject(ret);
+}
+
+/**
 */
 function set_panic_hook() {
     wasm.set_panic_hook();
@@ -374,6 +445,18 @@ class CrosswordClient {
     constructor() {
         this.generate_crossword_solution = (conf) => {
             return new_solution(conf);
+        };
+        this.generate_crossword_puzzle = (conf, puzzle_type) => {
+            return new_puzzle(conf, puzzle_type);
+        };
+        this.is_puzzle_complete = (puzzle_container) => {
+            return is_puzzle_complete(puzzle_container);
+        };
+        this.wrong_answers_and_solutions = (puzzle_container) => {
+            return wrong_answers_and_solutions(puzzle_container);
+        };
+        this.guess_word = (puzzle_container, guess) => {
+            return guess_word(puzzle_container, guess);
         };
     }
 }

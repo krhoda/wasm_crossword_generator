@@ -1,15 +1,29 @@
-import init, {set_panic_hook, new_solution, InitInput} from "./pkg/wasm_crossword_gen.js";
+import init, {
+  guess_word,
+  is_puzzle_complete,
+  set_panic_hook,
+  new_solution,
+  new_puzzle,
+  wrong_answers_and_solutions,
+  InitInput
+} from "./pkg/wasm_crossword_gen.js";
 
 // There is some weirdness around re-exporting types using rollup, see:
 // https://github.com/rollup/plugins/issues/71
 // This was the cleanest way to re-export a type that I have found:
-export type Word = import("./pkg/wasm_crossword_gen.js").Word;
+export type CrosswordRow = import("./pkg/wasm_crossword_gen.js").CrosswordRow;
 export type Direction = import("./pkg/wasm_crossword_gen.js").Direction;
 export type PlacedWord = import("./pkg/wasm_crossword_gen.js").PlacedWord;
-export type CrosswordRow = import("./pkg/wasm_crossword_gen.js").CrosswordRow;
 export type Placement = import("./pkg/wasm_crossword_gen.js").Placement;
-export type SolutionConf = import("./pkg/wasm_crossword_gen.js").SolutionConf;
+export type PuzzleCompleteContainer = import("./pkg/wasm_crossword_gen.js").PuzzleCompleteContainer;
+export type PuzzleAndResult = import("./pkg/wasm_crossword_gen.js").PuzzleAndResult;
+export type PuzzleContainer = import("./pkg/wasm_crossword_gen.js").PuzzleContainer;
+export type PuzzleType = import("./pkg/wasm_crossword_gen.js").PuzzleType;
 export type Solution = import("./pkg/wasm_crossword_gen.js").Solution;
+export type SolutionConf = import("./pkg/wasm_crossword_gen.js").SolutionConf;
+export type Word = import("./pkg/wasm_crossword_gen.js").Word;
+export type WrongAnswerPair = import("./pkg/wasm_crossword_gen.js").WrongAnswerPair;
+export type WrongAnswersContainer = import("./pkg/wasm_crossword_gen.js").WrongAnswersContainer;
 
 export type LoadOpts =  {
 	wasm?: InitInput
@@ -39,5 +53,31 @@ export class CrosswordClient {
 
 	public generate_crossword_solution = (conf: SolutionConf): Solution => {
 		return new_solution(conf);
+	}
+
+	public generate_crossword_puzzle = (
+		conf: SolutionConf,
+		puzzle_type: PuzzleType
+	): PuzzleContainer  => {
+		return new_puzzle(conf, puzzle_type);
+	}
+
+	public is_puzzle_complete = (
+		puzzle_container: PuzzleContainer
+	): PuzzleCompleteContainer => {
+		return is_puzzle_complete(puzzle_container);
+	}
+
+	public wrong_answers_and_solutions = (
+		puzzle_container: PuzzleContainer
+	): WrongAnswersContainer => {
+		return wrong_answers_and_solutions(puzzle_container);
+	}
+
+	public guess_word = (
+		puzzle_container: PuzzleContainer,
+		guess: PlacedWord
+	): PuzzleAndResult => {
+		return guess_word(puzzle_container, guess);
 	}
 }
