@@ -875,6 +875,7 @@ impl Solution {
         } else {
             y
         };
+
         // Would the word go over the top or the left of the grid's bounds?
         match intersection_index.cmp(&origin) {
             // Check the space beyond the beginning of the word to make sure it's empty.
@@ -893,6 +894,7 @@ impl Solution {
             // The word goes over the edge of the board.
             Ordering::Greater => return false,
         }
+
         let edge = if let Direction::Horizontal = direction {
             self.width - 1
         } else {
@@ -980,6 +982,42 @@ impl Solution {
                     if below_or_after.is_some() {
                         return false;
                     };
+                }
+            }
+        }
+
+        // Is there an already placed word this would over-write?
+        for placed_word in self.words.iter() {
+            if &placed_word.placement.direction == direction {
+                match direction {
+                    Direction::Horizontal => {
+                        if placed_word.placement.y == y {
+                            let fst_index = x - intersection_index;
+                            let lst_index = fst_index + (word.text.chars().count() - 1);
+
+                            let current_fst = placed_word.placement.x;
+                            let current_lst =
+                                current_fst + (placed_word.word.text.chars().count() - 1);
+
+                            if fst_index <= current_lst && lst_index >= current_fst {
+                                return false;
+                            }
+                        }
+                    }
+                    Direction::Verticle => {
+                        if placed_word.placement.x == x {
+                            let fst_index = y - intersection_index;
+                            let lst_index = fst_index + (word.text.chars().count() - 1);
+
+                            let current_fst = placed_word.placement.y;
+                            let current_lst =
+                                current_fst + (placed_word.word.text.chars().count() - 1);
+
+                            if fst_index <= current_lst && lst_index >= current_fst {
+                                return false;
+                            }
+                        }
+                    }
                 }
             }
         }
