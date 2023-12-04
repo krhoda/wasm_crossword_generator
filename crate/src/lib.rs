@@ -122,26 +122,28 @@ impl CrosswordRow {
 // fails, throws CrosswordError::MaxRetries.
 #[derive(Error, Debug)]
 pub enum CrosswordError {
+    #[error("cannot generate valid puzzle from list of words")]
+    BadConfig,
     #[error("word doesn't fit")]
     BadFit,
     #[error("intersection point was empty on non-first word")]
     EmptyIntersection,
-    #[error("could not generate crossword before hitting max retries")]
-    MaxRetries,
-    #[error("point out of bounds")]
-    PointOutOfBounds,
-    #[error("no valid inital words")]
-    NoValidInitialWords,
     #[error("generated puzzle did not meet requirements")]
     InsufficientPuzzle,
-    #[error("cannot generate valid puzzle from list of words")]
-    BadConfig,
-    #[error("puzzle doesn't match list of words")]
-    WordMismatch,
     #[error("player guess word's placement cannot be found")]
     InvalidPlayerGuess,
+    #[error("could not generate crossword before hitting max retries")]
+    MaxRetries,
     #[error("more guesses than words")]
     MoreGuessesThanWords,
+    #[error("no valid inital words")]
+    NoValidInitialWords,
+    #[error("point out of bounds")]
+    PointOutOfBounds,
+    #[error("word would conflict with other placed word")]
+    WordConflict,
+    #[error("puzzle doesn't match list of words")]
+    WordMismatch,
 }
 
 // !!! User Configuration !!!
