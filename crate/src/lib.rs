@@ -1082,30 +1082,43 @@ pub struct Puzzle {
 }
 
 impl Puzzle {
-    pub fn new(conf: SolutionConf) -> Result<Puzzle, CrosswordError> {
-        let solution = Solution::new(conf)?;
-        let mut grid: Vec<PuzzleRow> = Vec::new();
+    fn new_grid(grid: &[SolutionRow]) -> Vec<PuzzleRow> {
+        let mut result: Vec<PuzzleRow> = Vec::new();
 
-        for _ in solution.grid.iter() {
-            grid.push(PuzzleRow { row: Vec::new() });
+        for _ in grid.iter() {
+            result.push(PuzzleRow { row: Vec::new() });
         }
 
-        for (y, row) in solution.grid.iter().enumerate() {
+        for (y, row) in grid.iter().enumerate() {
             for space in row.row.iter() {
                 let next = PuzzleSpace {
                     has_char_slot: space.is_some(),
                     char_slot: None,
                 };
 
-                grid[y].row.push(next);
+                result[y].row.push(next);
             }
         }
+
+        result
+    }
+
+    pub fn new(conf: SolutionConf) -> Result<Puzzle, CrosswordError> {
+        let solution = Solution::new(conf)?;
+        let grid: Vec<PuzzleRow> = Puzzle::new_grid(&solution.grid);
 
         Ok(Puzzle {
             solution,
             player_answers: Vec::new(),
             grid,
         })
+    }
+
+    // Returns "None" if there's a conflict
+    // If no conflict, adds the answer to the players answers struct and grid
+    pub fn place_answer(&mut self, _placed_word: PlacedWord) -> Option<()> {
+        // TODO: Work from here.
+        None
     }
 
     pub fn is_complete(&self) -> Result<bool, CrosswordError> {
