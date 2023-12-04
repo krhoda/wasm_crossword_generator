@@ -98,7 +98,7 @@ export interface Puzzle {
     grid: PuzzleRow[];
 }
 
-export type GuessResult = "Complete" | "Correct" | "InvalidPlacement" | "InvalidTooManyAnswers" | "Repeat" | "Unchecked" | "Wrong";
+export type GuessResult = "Conflict" | "Complete" | "Correct" | "InvalidPlacement" | "InvalidTooManyAnswers" | "Repeat" | "StateError" | "Unchecked" | "Wrong";
 
 export interface ClassicPuzzle {
     puzzle: Puzzle;

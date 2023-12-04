@@ -128,14 +128,16 @@ pub enum CrosswordError {
     BadFit,
     #[error("intersection point was empty on non-first word")]
     EmptyIntersection,
+    #[error("grid state doesn't match solutions answer array")]
+    GridStateError,
     #[error("generated puzzle did not meet requirements")]
     InsufficientPuzzle,
     #[error("player guess word's placement cannot be found")]
     InvalidPlayerGuess,
     #[error("could not generate crossword before hitting max retries")]
     MaxRetries,
-    #[error("more guesses than words")]
-    MoreGuessesThanWords,
+    #[error("more answers than words")]
+    MoreAnswersThanWords,
     #[error("no valid inital words")]
     NoValidInitialWords,
     #[error("point out of bounds")]
@@ -1114,29 +1116,101 @@ impl Puzzle {
         })
     }
 
-    // Returns "None" if there's a conflict
-    // If no conflict, adds the answer to the players answers struct and grid
-    pub fn place_answer(&mut self, _placed_word: PlacedWord) -> Option<()> {
-        // TODO: Work from here.
-        None
+    // If the word fits, adds the word to the player_answers and grif fields.
+    // If there is a conflict or the word is the wrong length returns an Ok(None).
+    // Returns error if guess is invalid, meaning the placement isn't in the solutions vec
+    pub fn place_answer(&mut self, placed_word: PlacedWord) -> Result<Option<()>, CrosswordError> {
+        match self
+            .solution
+            .words
+            .iter()
+            .find(|w| w.placement == placed_word.placement)
+        {
+            Some(w) => {
+                if w.word.text.len() != placed_word.word.text.len() {
+                    return Ok(None);
+                }
+
+                match placed_word.placement.direction {
+                    Direction::Horizontal => {
+                        let y = placed_word.placement.y;
+                        for (word_index, next_char) in placed_word.word.text.chars().enumerate() {
+                            let x = word_index + placed_word.placement.x;
+                            if !self.grid[y].row[x].has_char_slot {
+                                return Err(CrosswordError::GridStateError);
+                            }
+
+                            if let Some(current_char) = self.grid[y].row[x].char_slot {
+                                if current_char != next_char {
+                                    return Ok(None);
+                                }
+                            };
+                        }
+                    }
+                    Direction::Verticle => {
+                        let x = placed_word.placement.x;
+                        for (word_index, next_char) in placed_word.word.text.chars().enumerate() {
+                            let y = word_index + placed_word.placement.y;
+                            if !self.grid[y].row[x].has_char_slot {
+                                return Err(CrosswordError::GridStateError);
+                            }
+
+                            if let Some(current_char) = self.grid[y].row[x].char_slot {
+                                if current_char != next_char {
+                                    return Ok(None);
+                                }
+                            };
+                        }
+                    }
+                }
+            }
+            None => return Err(CrosswordError::InvalidPlayerGuess),
+        };
+
+        // If we've made this far, it can be added.
+        match placed_word.placement.direction {
+            Direction::Horizontal => {
+                let y = placed_word.placement.y;
+                let x_base = placed_word.placement.x;
+                for (word_index, next_char) in placed_word.word.text.chars().enumerate() {
+                    let x = x_base + word_index;
+                    self.grid[y].row[x].char_slot = Some(next_char);
+                }
+
+                self.player_answers.push(placed_word);
+                Ok(Some(()))
+            }
+
+            Direction::Verticle => {
+                let x = placed_word.placement.x;
+                let y_base = placed_word.placement.y;
+                for (word_index, next_char) in placed_word.word.text.chars().enumerate() {
+                    let y = y_base + word_index;
+                    self.grid[y].row[x].char_slot = Some(next_char);
+                }
+
+                self.player_answers.push(placed_word);
+                Ok(Some(()))
+            }
+        }
+    }
+
+    pub fn remove_answer(&mut self, placement: &Placement) {
+        self.player_answers.retain(|w| &w.placement != placement)
     }
 
     pub fn is_complete(&self) -> Result<bool, CrosswordError> {
-        let a = self.player_answers.len();
-        let b = self.solution.words.len();
-        if a < b {
-            // The user needs to add more answers.
-            return Ok(false);
-        } else if self.player_answers.len() > self.solution.words.len() {
-            // More answers than the crossword provides space for have been recorded.
-            return Err(CrosswordError::MoreGuessesThanWords);
+        match self.player_answers.len().cmp(&self.solution.words.len()) {
+            // The player must supply more answers
+            Ordering::Less => Ok(false),
+            // The puzzle is complete
+            Ordering::Equal => Ok(self
+                .player_answers
+                .iter()
+                .all(|word| self.solution.words.contains(word))),
+            // The number of submitted answers is greater than the total answers
+            Ordering::Greater => Err(CrosswordError::MoreAnswersThanWords),
         }
-
-        // Are all the user's answers right?
-        Ok(self
-            .player_answers
-            .iter()
-            .all(|word| self.solution.words.contains(word)))
     }
 
     // Returns all user answers that are incorrect, along with the coresponding correction
@@ -1171,11 +1245,13 @@ impl Puzzle {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub enum GuessResult {
+    Conflict,
     Complete,
     Correct,
     InvalidPlacement,
     InvalidTooManyAnswers,
     Repeat,
+    StateError,
     Unchecked,
     Wrong,
 }
