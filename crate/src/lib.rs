@@ -1105,6 +1105,23 @@ impl Puzzle {
         result
     }
 
+    pub fn grid_from_answers(&mut self) -> Result<(), CrosswordError> {
+        self.grid = Puzzle::new_grid(&self.solution.grid);
+        let answers = self.player_answers.clone();
+        for word in answers.iter() {
+            match self.check_place_answer(word) {
+                Ok(Some(_)) => {
+                    self.place_answer_on_grid(word);
+                }
+                _ => {
+                    self.grid = Puzzle::new_grid(&self.solution.grid);
+                    return Err(CrosswordError::GridStateError);
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn new(conf: SolutionConf) -> Result<Puzzle, CrosswordError> {
         let solution = Solution::new(conf)?;
         let grid: Vec<PuzzleRow> = Puzzle::new_grid(&solution.grid);
@@ -1116,10 +1133,7 @@ impl Puzzle {
         })
     }
 
-    // If the word fits, adds the word to the player_answers and grif fields.
-    // If there is a conflict or the word is the wrong length returns an Ok(None).
-    // Returns error if guess is invalid, meaning the placement isn't in the solutions vec
-    pub fn place_answer(&mut self, placed_word: PlacedWord) -> Result<Option<()>, CrosswordError> {
+    fn check_place_answer(&self, placed_word: &PlacedWord) -> Result<Option<()>, CrosswordError> {
         match self
             .solution
             .words
@@ -1167,7 +1181,24 @@ impl Puzzle {
             None => return Err(CrosswordError::InvalidPlayerGuess),
         };
 
-        // If we've made this far, it can be added.
+        Ok(Some(()))
+    }
+
+    // If the word fits, adds the word to the player_answers and grid fields.
+    // If there is a conflict or the word is the wrong length returns an Ok(None).
+    // Returns error if guess is invalid, meaning the placement isn't in the solutions vec
+    pub fn place_answer(&mut self, placed_word: PlacedWord) -> Result<Option<()>, CrosswordError> {
+        match self.check_place_answer(&placed_word)? {
+            Some(_) => {
+                self.place_answer_on_grid(&placed_word);
+                self.player_answers.push(placed_word);
+                Ok(Some(()))
+            }
+            None => Ok(None),
+        }
+    }
+
+    fn place_answer_on_grid(&mut self, placed_word: &PlacedWord) {
         match placed_word.placement.direction {
             Direction::Horizontal => {
                 let y = placed_word.placement.y;
@@ -1176,9 +1207,6 @@ impl Puzzle {
                     let x = x_base + word_index;
                     self.grid[y].row[x].char_slot = Some(next_char);
                 }
-
-                self.player_answers.push(placed_word);
-                Ok(Some(()))
             }
 
             Direction::Verticle => {
@@ -1188,9 +1216,6 @@ impl Puzzle {
                     let y = y_base + word_index;
                     self.grid[y].row[x].char_slot = Some(next_char);
                 }
-
-                self.player_answers.push(placed_word);
-                Ok(Some(()))
             }
         }
     }
@@ -1279,6 +1304,10 @@ impl ClassicPuzzle {
             puzzle: Puzzle::new(conf)?,
         })
     }
+
+    pub fn remove_answer(&mut self, placement: &Placement) {
+        self.puzzle.remove_answer(placement)
+    }
 }
 
 impl Playmode for ClassicPuzzle {
@@ -1299,9 +1328,23 @@ impl Playmode for ClassicPuzzle {
             .player_answers
             .retain(|w| w.placement != word.placement);
 
-        self.puzzle.player_answers.push(word);
+        // Remove the previous guess from the grid
+        if self.puzzle.grid_from_answers().is_err() {
+            return GuessResult::StateError;
+        }
 
-        GuessResult::Unchecked
+        match self.puzzle.place_answer(word) {
+            // This branch executes if the puzzle state is bad or the placement of the guess is unexpected
+            Err(e) => match e {
+                CrosswordError::InvalidPlayerGuess => GuessResult::InvalidPlacement,
+                _ => GuessResult::StateError,
+            },
+            // This branch executes if the placement is valid, even if the word still conflicts
+            Ok(option) => match option {
+                Some(_) => GuessResult::Unchecked,
+                None => GuessResult::Conflict,
+            },
+        }
     }
 }
 
@@ -1347,16 +1390,26 @@ impl Playmode for PlacedWordPuzzle {
         };
 
         if correct == word {
-            self.puzzle.player_answers.push(word);
-            match self.puzzle.is_complete() {
-                Ok(b) => {
-                    if b {
-                        GuessResult::Complete
-                    } else {
-                        GuessResult::Correct
-                    }
-                }
-                Err(_) => GuessResult::InvalidTooManyAnswers,
+            match self.puzzle.place_answer(word) {
+                // This branch executes if the puzzle state is bad or the placement of the guess is unexpected
+                Err(e) => match e {
+                    CrosswordError::InvalidPlayerGuess => GuessResult::InvalidPlacement,
+                    _ => GuessResult::StateError,
+                },
+                // This branch executes if the placement is valid, even if the word still conflicts
+                Ok(option) => match option {
+                    Some(_) => match self.puzzle.is_complete() {
+                        Ok(b) => {
+                            if b {
+                                GuessResult::Complete
+                            } else {
+                                GuessResult::Correct
+                            }
+                        }
+                        Err(_) => GuessResult::InvalidTooManyAnswers,
+                    },
+                    None => GuessResult::Conflict,
+                },
             }
         } else {
             GuessResult::Wrong
@@ -1407,8 +1460,27 @@ impl Playmode for PerWordPuzzle {
             .iter()
             .find(|w| w.word.text == word.word.text)
         {
-            self.puzzle.player_answers.push(c.clone());
-            GuessResult::Correct
+            match self.puzzle.place_answer(c.clone()) {
+                // This branch executes if the puzzle state is bad or the placement of the guess is unexpected
+                Err(e) => match e {
+                    CrosswordError::InvalidPlayerGuess => GuessResult::InvalidPlacement,
+                    _ => GuessResult::StateError,
+                },
+                // This branch executes if the placement is valid, even if the word still conflicts
+                Ok(option) => match option {
+                    Some(_) => match self.puzzle.is_complete() {
+                        Ok(b) => {
+                            if b {
+                                GuessResult::Complete
+                            } else {
+                                GuessResult::Correct
+                            }
+                        }
+                        Err(_) => GuessResult::InvalidTooManyAnswers,
+                    },
+                    None => GuessResult::Conflict,
+                },
+            }
         } else {
             GuessResult::Wrong
         }
