@@ -93,7 +93,7 @@ pub struct PlacedWord {
     pub word: Word,
 }
 
-// CrosswordRow represents of one row of a crossword solution
+// SolutionRow represents of one row of a crossword solution
 // Within the interior "row" vector, there is either a None for a blank space
 // or a Some(c) where c: char which would be a component of the crossword solution.
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
@@ -102,19 +102,19 @@ pub struct PlacedWord {
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
-pub struct CrosswordRow {
+pub struct SolutionRow {
     pub row: Vec<Option<char>>,
 }
 
 // NOTE: If const generics worked with wasm_bindgen, we could do something way more concise/clear
-impl CrosswordRow {
-    fn new(width: usize) -> CrosswordRow {
+impl SolutionRow {
+    fn new(width: usize) -> SolutionRow {
         let mut row = Vec::<Option<char>>::new();
         for _ in 0..width {
             row.push(None);
         }
 
-        CrosswordRow { row }
+        SolutionRow { row }
     }
 }
 
@@ -275,7 +275,7 @@ pub struct SolutionConf {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub struct Solution {
-    pub grid: Vec<CrosswordRow>,
+    pub grid: Vec<SolutionRow>,
     pub words: Vec<PlacedWord>,
     width: usize,
     height: usize,
@@ -703,10 +703,10 @@ impl Solution {
 
     // Returns an empty crossword at the given w x h
     fn new_empty(width: usize, height: usize) -> Solution {
-        let mut grid = Vec::<CrosswordRow>::new();
+        let mut grid = Vec::<SolutionRow>::new();
 
         for _ in 0..height {
-            grid.push(CrosswordRow::new(width))
+            grid.push(SolutionRow::new(width))
         }
 
         Solution {
@@ -1045,6 +1045,29 @@ impl Solution {
     }
 }
 
+// NOTE: This could be represented as just a Option<Option<char>> but that will get ambiguous
+// serializing / deserailizing to JS.
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
+pub struct PuzzleSpace {
+    char_slot: Option<char>,
+    has_char_slot: bool,
+}
+
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[cfg_attr(
+    target_arch = "wasm32",
+    derive(Tsify),
+    tsify(into_wasm_abi, from_wasm_abi)
+)]
+pub struct PuzzleRow {
+    pub row: Vec<PuzzleSpace>,
+}
+
 // Puzzle is a stateful game composed of a solution and a list of answers.
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
@@ -1055,13 +1078,33 @@ impl Solution {
 pub struct Puzzle {
     pub solution: Solution,
     pub player_answers: Vec<PlacedWord>,
+    pub grid: Vec<PuzzleRow>,
 }
 
 impl Puzzle {
     pub fn new(conf: SolutionConf) -> Result<Puzzle, CrosswordError> {
+        let solution = Solution::new(conf)?;
+        let mut grid: Vec<PuzzleRow> = Vec::new();
+
+        for _ in solution.grid.iter() {
+            grid.push(PuzzleRow { row: Vec::new() });
+        }
+
+        for (y, row) in solution.grid.iter().enumerate() {
+            for space in row.row.iter() {
+                let next = PuzzleSpace {
+                    has_char_slot: space.is_some(),
+                    char_slot: None,
+                };
+
+                grid[y].row.push(next);
+            }
+        }
+
         Ok(Puzzle {
-            solution: Solution::new(conf)?,
+            solution,
             player_answers: Vec::new(),
+            grid,
         })
     }
 

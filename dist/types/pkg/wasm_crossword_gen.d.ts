@@ -48,7 +48,7 @@ export interface PlacedWord {
     word: Word;
 }
 
-export interface CrosswordRow {
+export interface SolutionRow {
     row: (string | null)[];
 }
 
@@ -77,15 +77,25 @@ export interface SolutionConf {
 }
 
 export interface Solution {
-    grid: CrosswordRow[];
+    grid: SolutionRow[];
     words: PlacedWord[];
     width: number;
     height: number;
 }
 
+export interface PuzzleSpace {
+    char_slot: string | null;
+    has_char_slot: boolean;
+}
+
+export interface PuzzleRow {
+    row: PuzzleSpace[];
+}
+
 export interface Puzzle {
     solution: Solution;
     player_answers: PlacedWord[];
+    grid: PuzzleRow[];
 }
 
 export type GuessResult = "Complete" | "Correct" | "InvalidPlacement" | "InvalidTooManyAnswers" | "Repeat" | "Unchecked" | "Wrong";
