@@ -118,8 +118,8 @@ impl SolutionRow {
     }
 }
 
-// CrosswordError is what it says on the tin. Often ellided over in favor of retrying, which if
-// fails, throws CrosswordError::MaxRetries.
+// CrosswordError is what it says on the tin. In generation, these are ellided over in favor
+// of retrying, which if fails, throws CrosswordError::MaxRetries.
 #[derive(Error, Debug)]
 pub enum CrosswordError {
     #[error("cannot generate valid puzzle from list of words")]
@@ -187,6 +187,7 @@ pub enum CrosswordInitialPlacementStrategy {
 }
 
 impl CrosswordInitialPlacementStrategy {
+    // A helper function to quickly access a given strategy's direction
     fn direction(&self) -> Direction {
         match self {
             CrosswordInitialPlacementStrategy::Center(d)
@@ -259,7 +260,7 @@ pub struct SolutionConf {
     pub height: usize,
     // Optional requirements for the puzzle, if a generated puzzle does not meet these
     // then a retry is initiated, the CrosswordReqs structure requires a max_retries field
-    // be specified to avoid retrying infinitly
+    // be specified to avoid retrying endlessly
     pub requirements: Option<CrosswordReqs>,
     // Optional requirements for the initial placement, allowing a caller to specify where and
     // how large the inital word placed should be.
@@ -446,7 +447,11 @@ impl Solution {
             }
             Some(ip) => {
                 let initial_mlc = if let Some(mlc) = ip.min_letter_count {
-                    mlc
+                    if mlc >= MIN_LETTER_COUNT {
+                        mlc
+                    } else {
+                        MIN_LETTER_COUNT
+                    }
                 } else {
                     MIN_LETTER_COUNT
                 };
@@ -490,6 +495,7 @@ impl Solution {
                     };
                 }
 
+                // TODO: Make sure this really results in place, it may need to have skip.append
                 skipped_words.reverse();
                 words.append(&mut skipped_words);
                 Ok(words)
