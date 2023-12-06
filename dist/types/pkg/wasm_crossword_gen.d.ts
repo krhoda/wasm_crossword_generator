@@ -28,6 +28,12 @@ export function wrong_answers_and_solutions(puzzle_container: PuzzleContainer): 
 */
 export function guess_word(puzzle_container: PuzzleContainer, guess: PlacedWord): PuzzleAndResult;
 /**
+* @param {PuzzleContainer} puzzle_container
+* @param {Placement} placement
+* @returns {PuzzleContainer}
+*/
+export function remove_answer(puzzle_container: PuzzleContainer, placement: Placement): PuzzleContainer;
+/**
 */
 export function set_panic_hook(): void;
 export interface Word {
@@ -149,6 +155,7 @@ export interface InitOutput {
   readonly is_puzzle_complete: (a: number, b: number) => void;
   readonly wrong_answers_and_solutions: (a: number, b: number) => void;
   readonly guess_word: (a: number, b: number, c: number) => void;
+  readonly remove_answer: (a: number, b: number, c: number) => void;
   readonly set_panic_hook: () => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

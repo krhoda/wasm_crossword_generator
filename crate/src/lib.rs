@@ -126,6 +126,8 @@ pub enum CrosswordError {
     BadConfig,
     #[error("word doesn't fit")]
     BadFit,
+    #[error("invalid operation for given PuzzleType")]
+    BadPuzzleType,
     #[error("intersection point was empty on non-first word")]
     EmptyIntersection,
     #[error("grid state doesn't match solutions answer array")]
@@ -142,8 +144,6 @@ pub enum CrosswordError {
     NoValidInitialWords,
     #[error("point out of bounds")]
     PointOutOfBounds,
-    #[error("word would conflict with other placed word")]
-    WordConflict,
     #[error("puzzle doesn't match list of words")]
     WordMismatch,
 }
@@ -1614,6 +1614,20 @@ pub fn guess_word(
         },
         guess_result,
     })
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn remove_answer(
+    puzzle_container: PuzzleContainer,
+    placement: Placement,
+) -> Result<PuzzleContainer, CrosswordError> {
+    if puzzle_container.puzzle_type != PuzzleType::Classic {
+        return Err(CrosswordError::BadPuzzleType);
+    }
+    let mut puzzle_container = puzzle_container;
+    puzzle_container.puzzle.remove_answer(&placement);
+    Ok(puzzle_container)
 }
 
 // This is a debug feature that is called from <repo>/src/crossword_gen_wrapper.ts

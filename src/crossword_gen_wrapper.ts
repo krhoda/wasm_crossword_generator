@@ -4,6 +4,7 @@ import init, {
   set_panic_hook,
   new_solution,
   new_puzzle,
+  remove_answer,
   wrong_answers_and_solutions,
   InitInput
 } from "./pkg/wasm_crossword_gen.js";
@@ -80,5 +81,12 @@ export class CrosswordClient {
 		guess: PlacedWord
 	): PuzzleAndResult => {
 		return guess_word(puzzle_container, guess);
+	}
+
+	public remove_answer = (
+		puzzle_container: PuzzleContainer,
+		placement: Placement
+	): PuzzleContainer => {
+		return remove_answer(puzzle_container, placement);
 	}
 }

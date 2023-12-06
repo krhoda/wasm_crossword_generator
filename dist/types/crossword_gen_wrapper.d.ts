@@ -25,4 +25,5 @@ export declare class CrosswordClient {
     is_puzzle_complete: (puzzle_container: PuzzleContainer) => PuzzleCompleteContainer;
     wrong_answers_and_solutions: (puzzle_container: PuzzleContainer) => WrongAnswersContainer;
     guess_word: (puzzle_container: PuzzleContainer, guess: PlacedWord) => PuzzleAndResult;
+    remove_answer: (puzzle_container: PuzzleContainer, placement: Placement) => PuzzleContainer;
 }
