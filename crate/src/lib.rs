@@ -1270,14 +1270,19 @@ impl Puzzle {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub enum GuessResult {
+    // The guess has a valid placement, but the word would overwrite existing answers
+    // Or the word guessed has the wrong length for the placement.
     Conflict,
+    // The guess is correct and completes the puzzle, not returned in the classic puzzle playmode
     Complete,
+    // The guess is correct, not returned in the classic puzzle playmode
     Correct,
-    InvalidPlacement,
-    InvalidTooManyAnswers,
+    // The guess is of a word already included in the puzzle.
     Repeat,
-    StateError,
+    // The guess fits the placement, but otherwise is unchecked, the primary response of the
+    // classic puzzle playmode
     Unchecked,
+    // The guess is valid but wrong.
     Wrong,
 }
 
@@ -1285,7 +1290,7 @@ pub trait Playmode
 where
     Self: Sized,
 {
-    fn guess_word(&mut self, word: PlacedWord) -> GuessResult;
+    fn guess_word(&mut self, word: PlacedWord) -> Result<GuessResult, CrosswordError>;
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
@@ -1311,7 +1316,7 @@ impl ClassicPuzzle {
 }
 
 impl Playmode for ClassicPuzzle {
-    fn guess_word(&mut self, word: PlacedWord) -> GuessResult {
+    fn guess_word(&mut self, word: PlacedWord) -> Result<GuessResult, CrosswordError> {
         // Is this a valid guess?
         if !self
             .puzzle
@@ -1320,7 +1325,7 @@ impl Playmode for ClassicPuzzle {
             .iter()
             .any(|w| w.placement == word.placement)
         {
-            return GuessResult::InvalidPlacement;
+            return Err(CrosswordError::InvalidPlayerGuess);
         }
 
         // Remove previous guess at placement if exists
@@ -1329,21 +1334,13 @@ impl Playmode for ClassicPuzzle {
             .retain(|w| w.placement != word.placement);
 
         // Remove the previous guess from the grid
-        if self.puzzle.grid_from_answers().is_err() {
-            return GuessResult::StateError;
-        }
+        self.puzzle.grid_from_answers()?;
 
-        match self.puzzle.place_answer(word) {
-            // This branch executes if the puzzle state is bad or the placement of the guess is unexpected
-            Err(e) => match e {
-                CrosswordError::InvalidPlayerGuess => GuessResult::InvalidPlacement,
-                _ => GuessResult::StateError,
-            },
-            // This branch executes if the placement is valid, even if the word still conflicts
-            Ok(option) => match option {
-                Some(_) => GuessResult::Unchecked,
-                None => GuessResult::Conflict,
-            },
+        // If this returns None, it means the word had a valid placement but it would
+        // overwrite a pre-existing answer's letters or is too short / long for the placement
+        match self.puzzle.place_answer(word)? {
+            Some(_) => Ok(GuessResult::Unchecked),
+            None => Ok(GuessResult::Conflict),
         }
     }
 }
@@ -1367,14 +1364,9 @@ impl PlacedWordPuzzle {
 }
 
 impl Playmode for PlacedWordPuzzle {
-    fn guess_word(&mut self, word: PlacedWord) -> GuessResult {
-        match self.puzzle.is_complete() {
-            Ok(b) => {
-                if b {
-                    return GuessResult::Complete;
-                }
-            }
-            Err(_) => return GuessResult::InvalidTooManyAnswers,
+    fn guess_word(&mut self, word: PlacedWord) -> Result<GuessResult, CrosswordError> {
+        if self.puzzle.is_complete()? {
+            return Ok(GuessResult::Complete);
         }
 
         let correct = if let Some(c) = self
@@ -1386,33 +1378,22 @@ impl Playmode for PlacedWordPuzzle {
         {
             c.clone()
         } else {
-            return GuessResult::InvalidPlacement;
+            return Err(CrosswordError::InvalidPlayerGuess);
         };
 
         if correct == word {
-            match self.puzzle.place_answer(word) {
-                // This branch executes if the puzzle state is bad or the placement of the guess is unexpected
-                Err(e) => match e {
-                    CrosswordError::InvalidPlayerGuess => GuessResult::InvalidPlacement,
-                    _ => GuessResult::StateError,
-                },
-                // This branch executes if the placement is valid, even if the word still conflicts
-                Ok(option) => match option {
-                    Some(_) => match self.puzzle.is_complete() {
-                        Ok(b) => {
-                            if b {
-                                GuessResult::Complete
-                            } else {
-                                GuessResult::Correct
-                            }
-                        }
-                        Err(_) => GuessResult::InvalidTooManyAnswers,
-                    },
-                    None => GuessResult::Conflict,
-                },
+            match self.puzzle.place_answer(word)? {
+                Some(_) => {
+                    if self.puzzle.is_complete()? {
+                        Ok(GuessResult::Complete)
+                    } else {
+                        Ok(GuessResult::Correct)
+                    }
+                }
+                None => Ok(GuessResult::Conflict),
             }
         } else {
-            GuessResult::Wrong
+            Ok(GuessResult::Wrong)
         }
     }
 }
@@ -1436,14 +1417,9 @@ impl PerWordPuzzle {
 }
 
 impl Playmode for PerWordPuzzle {
-    fn guess_word(&mut self, word: PlacedWord) -> GuessResult {
-        match self.puzzle.is_complete() {
-            Ok(b) => {
-                if b {
-                    return GuessResult::Complete;
-                };
-            }
-            Err(_) => return GuessResult::InvalidTooManyAnswers,
+    fn guess_word(&mut self, word: PlacedWord) -> Result<GuessResult, CrosswordError> {
+        if self.puzzle.is_complete()? {
+            return Ok(GuessResult::Complete);
         }
 
         if self
@@ -1452,7 +1428,7 @@ impl Playmode for PerWordPuzzle {
             .iter()
             .any(|w| w.word.text == word.word.text)
         {
-            GuessResult::Repeat
+            Ok(GuessResult::Repeat)
         } else if let Some(c) = self
             .puzzle
             .solution
@@ -1460,29 +1436,18 @@ impl Playmode for PerWordPuzzle {
             .iter()
             .find(|w| w.word.text == word.word.text)
         {
-            match self.puzzle.place_answer(c.clone()) {
-                // This branch executes if the puzzle state is bad or the placement of the guess is unexpected
-                Err(e) => match e {
-                    CrosswordError::InvalidPlayerGuess => GuessResult::InvalidPlacement,
-                    _ => GuessResult::StateError,
-                },
-                // This branch executes if the placement is valid, even if the word still conflicts
-                Ok(option) => match option {
-                    Some(_) => match self.puzzle.is_complete() {
-                        Ok(b) => {
-                            if b {
-                                GuessResult::Complete
-                            } else {
-                                GuessResult::Correct
-                            }
-                        }
-                        Err(_) => GuessResult::InvalidTooManyAnswers,
-                    },
-                    None => GuessResult::Conflict,
-                },
+            match self.puzzle.place_answer(c.clone())? {
+                Some(_) => {
+                    if self.puzzle.is_complete()? {
+                        Ok(GuessResult::Complete)
+                    } else {
+                        Ok(GuessResult::Correct)
+                    }
+                }
+                None => Ok(GuessResult::Conflict),
             }
         } else {
-            GuessResult::Wrong
+            Ok(GuessResult::Wrong)
         }
     }
 }
@@ -1607,7 +1572,10 @@ pub struct PuzzleAndResult {
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
-pub fn guess_word(puzzle_container: PuzzleContainer, guess: PlacedWord) -> PuzzleAndResult {
+pub fn guess_word(
+    puzzle_container: PuzzleContainer,
+    guess: PlacedWord,
+) -> Result<PuzzleAndResult, CrosswordError> {
     let puzzle_type = puzzle_container.puzzle_type;
     let (puzzle, guess_result) = match puzzle_type {
         PuzzleType::Classic => {
@@ -1616,7 +1584,7 @@ pub fn guess_word(puzzle_container: PuzzleContainer, guess: PlacedWord) -> Puzzl
             };
 
             // NOTE: because guess_word is a mutation, we do it before returning the var
-            let res = classic.guess_word(guess);
+            let res = classic.guess_word(guess)?;
             (classic.puzzle, res)
         }
         PuzzleType::PlacedWord => {
@@ -1625,7 +1593,7 @@ pub fn guess_word(puzzle_container: PuzzleContainer, guess: PlacedWord) -> Puzzl
             };
 
             // NOTE: because guess_word is a mutation, we do it before returning the var
-            let res = placed_word.guess_word(guess);
+            let res = placed_word.guess_word(guess)?;
             (placed_word.puzzle, res)
         }
         PuzzleType::PerWord => {
@@ -1634,18 +1602,18 @@ pub fn guess_word(puzzle_container: PuzzleContainer, guess: PlacedWord) -> Puzzl
             };
 
             // NOTE: because guess_word is a mutation, we do it before returning the var
-            let res = per_word.guess_word(guess);
+            let res = per_word.guess_word(guess)?;
             (per_word.puzzle, res)
         }
     };
 
-    PuzzleAndResult {
+    Ok(PuzzleAndResult {
         puzzle_container: PuzzleContainer {
             puzzle_type,
             puzzle,
         },
         guess_result,
-    }
+    })
 }
 
 // This is a debug feature that is called from <repo>/src/crossword_gen_wrapper.ts

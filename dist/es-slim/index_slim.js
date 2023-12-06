@@ -200,8 +200,19 @@ function wrong_answers_and_solutions(puzzle_container) {
 * @returns {PuzzleAndResult}
 */
 function guess_word(puzzle_container, guess) {
-    const ret = wasm.guess_word(addHeapObject(puzzle_container), addHeapObject(guess));
-    return takeObject(ret);
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        wasm.guess_word(retptr, addHeapObject(puzzle_container), addHeapObject(guess));
+        var r0 = getInt32Memory0()[retptr / 4 + 0];
+        var r1 = getInt32Memory0()[retptr / 4 + 1];
+        var r2 = getInt32Memory0()[retptr / 4 + 2];
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return takeObject(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
 }
 
 /**

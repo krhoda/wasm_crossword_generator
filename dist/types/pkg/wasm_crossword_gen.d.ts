@@ -98,7 +98,7 @@ export interface Puzzle {
     grid: PuzzleRow[];
 }
 
-export type GuessResult = "Conflict" | "Complete" | "Correct" | "InvalidPlacement" | "InvalidTooManyAnswers" | "Repeat" | "StateError" | "Unchecked" | "Wrong";
+export type GuessResult = "Conflict" | "Complete" | "Correct" | "Repeat" | "Unchecked" | "Wrong";
 
 export interface ClassicPuzzle {
     puzzle: Puzzle;
@@ -148,7 +148,7 @@ export interface InitOutput {
   readonly new_puzzle: (a: number, b: number, c: number) => void;
   readonly is_puzzle_complete: (a: number, b: number) => void;
   readonly wrong_answers_and_solutions: (a: number, b: number) => void;
-  readonly guess_word: (a: number, b: number) => number;
+  readonly guess_word: (a: number, b: number, c: number) => void;
   readonly set_panic_hook: () => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
