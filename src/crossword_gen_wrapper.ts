@@ -1,12 +1,12 @@
 import init, {
-  guess_word,
-  is_puzzle_complete,
-  set_panic_hook,
-  new_solution,
-  new_puzzle,
-  remove_answer,
-  wrong_answers_and_solutions,
-  InitInput
+	guess_word,
+	is_puzzle_complete,
+	set_panic_hook,
+	new_solution,
+	new_puzzle,
+	remove_answer,
+	wrong_answers_and_solutions,
+	InitInput
 } from "./pkg/wasm_crossword_gen.js";
 
 // There is some weirdness around re-exporting types using rollup, see:
@@ -27,13 +27,13 @@ export type Word = import("./pkg/wasm_crossword_gen.js").Word;
 export type WrongAnswerPair = import("./pkg/wasm_crossword_gen.js").WrongAnswerPair;
 export type WrongAnswersContainer = import("./pkg/wasm_crossword_gen.js").WrongAnswersContainer;
 
-export type LoadOpts =  {
+export type LoadOpts = {
 	wasm?: InitInput
 };
 
 let wasmInit: (() => InitInput) | undefined = undefined;
 export const setWasmInit = (arg: () => InitInput) => {
-  wasmInit = arg;
+	wasmInit = arg;
 };
 
 let initialized: Promise<void> | undefined = undefined;
@@ -60,7 +60,7 @@ export class CrosswordClient {
 	public generate_crossword_puzzle = (
 		conf: SolutionConf,
 		puzzle_type: PuzzleType
-	): PuzzleContainer  => {
+	): PuzzleContainer => {
 		return new_puzzle(conf, puzzle_type);
 	}
 

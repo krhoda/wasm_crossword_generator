@@ -17,13 +17,14 @@ use wasm_bindgen::prelude::*;
 
 // !!! Building Blocks !!!
 
-// If a word is smaller than three letters, it could potentially break crossword generation.
-// Defined as a constant to avoid magic numbers. Callers can provide larger minimums.
+/// Used to set the minimum size in chars of words that act as solution answers.
+/// If a word is smaller than three letters, it could potentially break crossword generation.
+/// Defined as a constant to avoid magic numbers. Callers can provide larger minimums.
 const MIN_LETTER_COUNT: usize = 3;
 
-// Word is a record containing a potential portion of the Crossword answer at "text"
-// along with an optional "clue" field.
-// The "text" field will be split using .chars() with all the implications that brings.
+/// Word is a record containing a potential portion of the Crossword answer at "text"
+/// along with an optional "clue" field.
+/// The "text" field will be split using .chars() with all the implications that brings.
 #[derive(Clone, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -31,11 +32,15 @@ const MIN_LETTER_COUNT: usize = 3;
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub struct Word {
+    /// The literal chars that make up the answer word in string format.
     pub text: String,
+    /// The optional clue to be displayed in some crossword game formats.
     pub clue: Option<String>,
 }
 
-// Direction is used to determine the orientation of the word.
+/// Direction is used to determine the orientation of the word. Includes an "other" function to get
+/// a given direction's inverse and impls Distribution (50/50) so that it can be generated using
+/// the local RNG.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -47,8 +52,8 @@ pub enum Direction {
     Verticle,
 }
 
-// The implementation of Direction exposes a logical "not" fn called "other"
 impl Direction {
+    /// The implementation of Direction exposes a logical "not" fn called "other"
     pub fn other(&self) -> Direction {
         match self {
             Direction::Horizontal => Direction::Verticle,
@@ -67,7 +72,7 @@ impl Distribution<Direction> for Standard {
     }
 }
 
-// Placement describes a location on the crossword puzzle. Used to mark word origins.
+/// Placement describes a location on the crossword puzzle. Used to mark word origins.
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -80,8 +85,8 @@ pub struct Placement {
     pub direction: Direction,
 }
 
-// PlacedWord represents a word which makes up the crossword puzzle's answers
-// The placement field marks the origin and orientation of the word.
+/// PlacedWord represents a word which makes up the crossword puzzle's answers
+/// The placement field marks the origin and orientation of the word.
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -93,9 +98,10 @@ pub struct PlacedWord {
     pub word: Word,
 }
 
-// SolutionRow represents of one row of a crossword solution
-// Within the interior "row" vector, there is either a None for a blank space
-// or a Some(c) where c: char which would be a component of the crossword solution.
+/// SolutionRow represents of one row of a crossword solution.
+/// Within the interior "row" vector, there is either a None for a blank space
+/// or a Some(c) where c: char which would be a component of the crossword solution.
+/// Constructed by passing in a "width" param.
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -118,8 +124,8 @@ impl SolutionRow {
     }
 }
 
-// CrosswordError is what it says on the tin. In generation, these are ellided over in favor
-// of retrying, which if fails, throws CrosswordError::MaxRetries.
+/// CrosswordError is what it says on the tin. In generation, these are ellided over in favor
+/// of retrying, which if fails, bubbles the CrosswordError::MaxRetries error.
 #[derive(Error, Debug)]
 pub enum CrosswordError {
     #[error("cannot generate valid puzzle from list of words")]
@@ -150,7 +156,12 @@ pub enum CrosswordError {
 
 // !!! User Configuration !!!
 
-// CrosswordReqs is a structure holding requirements the final puzzle must meet such as...
+/// CrosswordReqs is a structure holding requirements the final puzzle must meet including:
+/// "max_retries": how many times to attempt to make a valid puzzle before erroring out,
+/// "min_letters_per_word" how small can a word be (if > 3, this value overwrites MIN_LETTER_COUNT)
+/// "min_words" the minimum number of words that make up the answer
+/// "max_empty_columns" the number of columns that can be completely empty
+/// "max_empty_rows" the number of rows that can be completely empty
 #[derive(Clone, Deserialize, Serialize)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -158,19 +169,20 @@ pub enum CrosswordError {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub struct CrosswordReqs {
-    // ... how many times to attempt to make a valid puzzle before erroring out ...
+    /// how many times to attempt to make a valid puzzle before erroring out,
     pub max_retries: usize, // NOTE: This is the only required one
-    // ... how small can a word be ...
+    /// how small can a word be (if > 3, this value overwrites MIN_LETTER_COUNT)
     pub min_letters_per_word: Option<usize>,
-    // ... the minimum number of words that make up the answer ...
+    /// the minimum number of words that make up the answer
     pub min_words: Option<usize>,
-    // ... the number of columns that can be completely empty ...
+    /// the number of columns that can be completely empty
     pub max_empty_columns: Option<usize>,
-    // ... the number of rows that can be completely empty
+    /// the number of rows that can be completely empty
     pub max_empty_rows: Option<usize>,
 }
 
-// CrosswordInitialPlacementStrategy allows the caller to specifiy how to begin the crossword
+/// CrosswordInitialPlacementStrategy allows the caller to specifiy how to place the first word
+/// of the puzzle. Can be randomly generated using local RNG, which is how default is impl'd.
 #[derive(Clone, Deserialize, Serialize)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -187,7 +199,7 @@ pub enum CrosswordInitialPlacementStrategy {
 }
 
 impl CrosswordInitialPlacementStrategy {
-    // A helper function to quickly access a given strategy's direction
+    /// A helper function to quickly access a given strategy's direction
     fn direction(&self) -> Direction {
         match self {
             CrosswordInitialPlacementStrategy::Center(d)
@@ -219,8 +231,8 @@ impl std::default::Default for CrosswordInitialPlacementStrategy {
     }
 }
 
-// CrosswordInitialPlacement allows the caller to specify where and how large the initial word
-// placed should be
+/// CrosswordInitialPlacement allows the caller to specify where and how large the initial word
+/// placed should be.
 #[derive(Clone, Deserialize, Serialize)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -228,8 +240,9 @@ impl std::default::Default for CrosswordInitialPlacementStrategy {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub struct CrosswordInitialPlacement {
-    // This differs from CrosswordReq's min_letters_per_word by only applying to the initial word
+    /// This differs from CrosswordReq's min_letters_per_word by only applying to the initial word
     pub min_letter_count: Option<usize>,
+    /// This determines where the initial word will be placed.
     pub strategy: Option<CrosswordInitialPlacementStrategy>,
 }
 
@@ -242,7 +255,7 @@ impl std::default::Default for CrosswordInitialPlacement {
     }
 }
 
-// SolutionConf is the structure used to configure the generation crossword solutions.
+/// SolutionConf is the structure used to configure the generation crossword solutions.
 #[derive(Clone, Deserialize, Serialize)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -250,27 +263,27 @@ impl std::default::Default for CrosswordInitialPlacement {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub struct SolutionConf {
-    // The possible words to use to construct the puzzle
+    /// The possible words to use to construct the puzzle
     pub words: Vec<Word>,
-    // Maximum words for the puzzle
+    /// Maximum words used as answers for the generated puzzle
     pub max_words: usize,
-    // How wide the puzzle should be in single letter spaces
+    /// How wide the puzzle should be in single letter spaces
     pub width: usize,
-    // How tall the puzzle should be in single letter spaces
+    /// How tall the puzzle should be in single letter spaces
     pub height: usize,
-    // Optional requirements for the puzzle, if a generated puzzle does not meet these
-    // then a retry is initiated, the CrosswordReqs structure requires a max_retries field
-    // be specified to avoid retrying endlessly
+    /// Optional requirements for the puzzle, if a generated puzzle does not meet these
+    /// then a retry is initiated, the CrosswordReqs structure requires a max_retries field
+    /// be specified to avoid retrying endlessly
     pub requirements: Option<CrosswordReqs>,
-    // Optional requirements for the initial placement, allowing a caller to specify where and
-    // how large the inital word placed should be.
+    /// Optional requirements for the initial placement, allowing a caller to specify where and
+    /// how large the inital word placed should be.
     pub initial_placement: Option<CrosswordInitialPlacement>,
 }
 
 // !!! Solution Generation and Stateful Puzzles !!!
 
-// Solution represents a complete crossword structure. Does not include stateful
-// constructs for user input.
+/// Solution represents a complete crossword structure. Does not include stateful
+/// constructs for user input.
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -278,13 +291,21 @@ pub struct SolutionConf {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub struct Solution {
+    /// The actual structure of the crossword, represented as a Vector of Rows. This causes the
+    /// traversal logic to use 0,0 as the upper-left corner, for better or worse.
     pub grid: Vec<SolutionRow>,
+    /// A vector of words containing all (and only) the solutions to the puzzle.
     pub words: Vec<PlacedWord>,
+    /// The width of the puzzle, this matches a SolutionRow.row.len()'s value.
     width: usize,
+    /// The height of the puzzle, this matches grid.len()'s value.
     height: usize,
 }
 
 impl Solution {
+    /// Using the passed in SolutionConf, it attempts to generate a puzzle.
+    /// If the puzzle errors out or does not meet specs, generation is retried.
+    /// If max_retries are hit (or in the case of no max_retries property, after the first)
     pub fn new(conf: SolutionConf) -> Result<Solution, CrosswordError> {
         if let Ok(crossword) = Solution::generate(conf.clone()) {
             return Ok(crossword);
@@ -304,8 +325,8 @@ impl Solution {
         Err(CrosswordError::MaxRetries)
     }
 
-    // Useful for testing deserialized Solutions from external sources.
-    // Also used as a sanity check in the new function
+    /// Useful for testing deserialized Solutions from external sources.
+    /// Also used as a sanity check in the new function
     pub fn is_valid(&self) -> Result<(), CrosswordError> {
         let mut crossword = Solution::new_empty(self.width, self.height);
         for word in self.words.iter() {
@@ -1053,8 +1074,11 @@ impl Solution {
     }
 }
 
-// NOTE: This could be represented as just a Option<Option<char>> but that will get ambiguous
-// serializing / deserailizing to JS.
+/// PuzzleSpace functions as a stateful structure representing whether a char has been guessed
+/// for this space. Contains a boolean representing whether it can take a char (true) or is an empty
+/// space (false), and has a char_slot that is an Option<char>. This could be represented as an
+/// Option<Option<char>> if this were only targeting Rust, but that approach becomes ambiguous when
+/// De/Serializing from JS.
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -1066,6 +1090,8 @@ pub struct PuzzleSpace {
     has_char_slot: bool,
 }
 
+/// PuzzleRow contains a vector of PuzzleSpaces at "row", represetning a stateful row of the
+/// crossword's grid.
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -1076,7 +1102,8 @@ pub struct PuzzleRow {
     pub row: Vec<PuzzleSpace>,
 }
 
-// Puzzle is a stateful game composed of a solution and a list of answers.
+/// Puzzle is a stateful game composed of a static solution, a stateful grid, and a list of player
+/// submitted answers.
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -1111,6 +1138,8 @@ impl Puzzle {
         result
     }
 
+    /// Rebuilds the grid from the provided player answers, used to change the state of the Puzzle
+    /// struct so that a downstream application can re-render it.
     pub fn grid_from_answers(&mut self) -> Result<(), CrosswordError> {
         self.grid = Puzzle::new_grid(&self.solution.grid);
         let answers = self.player_answers.clone();
@@ -1128,6 +1157,7 @@ impl Puzzle {
         Ok(())
     }
 
+    /// Builds the stateful Puzzle struct from a SoultionConf
     pub fn new(conf: SolutionConf) -> Result<Puzzle, CrosswordError> {
         let solution = Solution::new(conf)?;
         let grid: Vec<PuzzleRow> = Puzzle::new_grid(&solution.grid);
@@ -1190,9 +1220,9 @@ impl Puzzle {
         Ok(Some(()))
     }
 
-    // If the word fits, adds the word to the player_answers and grid fields.
-    // If there is a conflict or the word is the wrong length returns an Ok(None).
-    // Returns error if guess is invalid, meaning the placement isn't in the solutions vec
+    /// place_answer checks if the word fits, adds the word to the player_answers and grid fields.
+    /// If there is a conflict or the word is the wrong length returns an Ok(None).
+    /// Returns error if guess is invalid, meaning the placement isn't in the solutions vec
     pub fn place_answer(&mut self, placed_word: PlacedWord) -> Result<Option<()>, CrosswordError> {
         match self.check_place_answer(&placed_word)? {
             Some(_) => {
@@ -1226,10 +1256,15 @@ impl Puzzle {
         }
     }
 
-    pub fn remove_answer(&mut self, placement: &Placement) {
-        self.player_answers.retain(|w| &w.placement != placement)
+    /// remove_answer removes the answer from the Puzzle, then rebuilds the grid.
+    pub fn remove_answer(&mut self, placement: &Placement) -> Result<(), CrosswordError> {
+        self.player_answers.retain(|w| &w.placement != placement);
+        self.grid_from_answers()?;
+        Ok(())
     }
 
+    /// is_complete checks if the puzzle's player-supplied answers all match the puzzle's solution.
+    /// returns an error if there are more player-supplied answers than words in the solution.
     pub fn is_complete(&self) -> Result<bool, CrosswordError> {
         match self.player_answers.len().cmp(&self.solution.words.len()) {
             // The player must supply more answers
@@ -1244,7 +1279,8 @@ impl Puzzle {
         }
     }
 
-    // Returns all user answers that are incorrect, along with the coresponding correction
+    /// wrong_answers_and_solutions return all user answers that are incorrect, along with the
+    /// coresponding correction.
     pub fn wrong_answers_and_solutions(
         &self,
     ) -> Result<Vec<(PlacedWord, PlacedWord)>, CrosswordError> {
@@ -1316,7 +1352,7 @@ impl ClassicPuzzle {
         })
     }
 
-    pub fn remove_answer(&mut self, placement: &Placement) {
+    pub fn remove_answer(&mut self, placement: &Placement) -> Result<(), CrosswordError> {
         self.puzzle.remove_answer(placement)
     }
 }
