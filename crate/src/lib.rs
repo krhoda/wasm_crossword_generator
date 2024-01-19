@@ -4,8 +4,8 @@
 //! WebAssembly support for the use in the browser or other WASM environments. It provides a
 //! a configurable `Solution`s generator and multiple stateful `Playmode`s. It is WASM-first so
 //! some design trade-offs are needed such as not using const generics, creating wrapper types, and
-//! using labelled structs instead of tuples. See https://github.com/krhoda/wasm_crossword_gen for
-//! more details and instructions on how to run examples.
+//! using labelled structs instead of tuples. See https://github.com/krhoda/wasm_crossword_generator
+//! for more details and instructions on how to run examples.
 
 use rand::{
     distributions::{Distribution, Standard},
