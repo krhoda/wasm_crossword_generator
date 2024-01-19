@@ -1,3 +1,12 @@
+//! #  WASM Crossword Generator
+//!
+//! `wasm_crossword_generator` is a library to generate and operate crossword puzzles with first-class
+//! WebAssembly support for the use in the browser or other WASM environments. It provides a
+//! a configurable `Solution`s generator and multiple stateful `Playmode`s. It is WASM-first so
+//! some design trade-offs are needed such as not using const generics, creating wrapper types, and
+//! using labelled structs instead of tuples. See https://github.com/krhoda/wasm_crossword_gen for
+//! more details and instructions on how to run examples.
+
 use rand::{
     distributions::{Distribution, Standard},
     seq::SliceRandom,
@@ -1305,6 +1314,10 @@ impl Puzzle {
     }
 }
 
+/// GuessResult encompasses the possible outcomes of a player guess.
+/// Not all results are used with all Playmodes.
+/// This allows a calling application to distiguish between a bad answer from a player and a bad state
+/// in the Puzzle by returning an error in the case of the latter.
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -1312,29 +1325,37 @@ impl Puzzle {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub enum GuessResult {
-    // The guess has a valid placement, but the word would overwrite existing answers
-    // Or the word guessed has the wrong length for the placement.
+    /// The guess has a valid placement, but the word would overwrite existing answers
+    /// Or the word guessed has the wrong length for the placement.
     Conflict,
-    // The guess is correct and completes the puzzle, not returned in the classic puzzle playmode
+    /// The guess is correct and completes the puzzle, not returned in the classic puzzle playmode
     Complete,
-    // The guess is correct, not returned in the classic puzzle playmode
+    /// The guess is correct, not returned in the classic puzzle playmode
     Correct,
-    // The guess is of a word already included in the puzzle.
+    /// The guess is of a word already included in the puzzle.
     Repeat,
-    // The guess fits the placement, but otherwise is unchecked, the primary response of the
-    // classic puzzle playmode
+    /// The guess fits the placement, but otherwise is unchecked, the primary response of the
+    /// classic puzzle playmode
     Unchecked,
-    // The guess is valid but wrong.
+    /// The guess is valid but wrong.
     Wrong,
 }
 
+/// Playmode is an abstraction over the act of the player guessing a word, depending on the playmode
+/// different checks and results will occur.
 pub trait Playmode
 where
     Self: Sized,
 {
+    /// guess_word handles a player guess, returns a GuessResult in most cases, and only returns an
+    /// error if the Puzzle is in a bad state or the guess' placement is invalid.
     fn guess_word(&mut self, word: PlacedWord) -> Result<GuessResult, CrosswordError>;
 }
 
+/// ClassicPuzzle Playmode checks that guesses fit the Placement and don't overwrite existing guesses.
+/// It accumulates player answers and can return if it's complete or not, but does not do so
+/// automatically on guess like other Playmodes. It exposes a "remove_answer" function to allow the
+/// player to remove guesses they deem as bad when dealing with an incorrect Puzzle.
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -1342,16 +1363,19 @@ where
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub struct ClassicPuzzle {
+    /// The underlying generic stateful Puzzle struct.
     pub puzzle: Puzzle,
 }
 
 impl ClassicPuzzle {
+    /// Generates a ClassicPuzzle from a SolutionConf
     pub fn new(conf: SolutionConf) -> Result<ClassicPuzzle, CrosswordError> {
         Ok(ClassicPuzzle {
             puzzle: Puzzle::new(conf)?,
         })
     }
 
+    /// Remove the answer at the given placement.
     pub fn remove_answer(&mut self, placement: &Placement) -> Result<(), CrosswordError> {
         self.puzzle.remove_answer(placement)
     }
@@ -1387,6 +1411,9 @@ impl Playmode for ClassicPuzzle {
     }
 }
 
+/// PlacedWordPuzzle Playmode expects the guess to a placement and word, then only adds the answer
+/// to the puzzle state if the guess is valid. Returns a "Complete" result when the last correct guess
+/// is given.
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -1394,10 +1421,12 @@ impl Playmode for ClassicPuzzle {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub struct PlacedWordPuzzle {
+    /// The underlying generic stateful Puzzle struct.
     pub puzzle: Puzzle,
 }
 
 impl PlacedWordPuzzle {
+    /// Generates a PlacedWordPuzzle from a SolutionConf
     pub fn new(conf: SolutionConf) -> Result<PlacedWordPuzzle, CrosswordError> {
         Ok(PlacedWordPuzzle {
             puzzle: Puzzle::new(conf)?,
@@ -1440,6 +1469,9 @@ impl Playmode for PlacedWordPuzzle {
     }
 }
 
+/// PerWordPuzzle Playmode expects the user to guess a word without a Placement. If the word is
+/// present, it is added to the Puzzle at the correct placement. On the last word being correctly
+/// guessed, it returns GuessResult::Complete.
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
@@ -1447,10 +1479,12 @@ impl Playmode for PlacedWordPuzzle {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub struct PerWordPuzzle {
+    /// The underlying generic stateful Puzzle struct.
     pub puzzle: Puzzle,
 }
 
 impl PerWordPuzzle {
+    /// Generates a PerWordPuzzle from a SolutionConf
     pub fn new(conf: SolutionConf) -> Result<PerWordPuzzle, CrosswordError> {
         Ok(PerWordPuzzle {
             puzzle: Puzzle::new(conf)?,
@@ -1505,6 +1539,7 @@ extern "C" {
 }
 */
 
+// This allows the CrosswordError to be returned from WASM-compiled functions
 #[cfg(target_arch = "wasm32")]
 #[allow(clippy::from_over_into)]
 impl std::convert::Into<JsValue> for CrosswordError {
@@ -1513,13 +1548,14 @@ impl std::convert::Into<JsValue> for CrosswordError {
     }
 }
 
-// This is the only way JS/WASM applications can construct Solution structs
+/// new_solution is the only way JS/WASM applications can construct Solution structs
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn new_solution(conf: SolutionConf) -> Result<Solution, CrosswordError> {
     Solution::new(conf)
 }
 
+/// PuzzleType allows both sides of the JS/WASM divide to reference different types of Playmode.
 #[cfg(target_arch = "wasm32")]
 #[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -1529,15 +1565,23 @@ pub enum PuzzleType {
     PerWord,
 }
 
+/// PuzzleContainer allows both sides of the JS/WASM divide to understand the PuzzleType when the
+/// struct is passed over the barrier and back. In normal Rust, each of the Playmode structs are
+/// identifiable by their type, but when they are De/Serialized, it is impossible to distinguish
+/// between them, since they are all of the same shape: { puzzle: Puzzle }.
 #[cfg(target_arch = "wasm32")]
 #[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct PuzzleContainer {
+    /// Acts as a label for "puzzle".
     puzzle_type: PuzzleType,
+    /// The underlying stateful Puzzle.
     puzzle: Puzzle,
 }
 
-// This is the only way JS/WASM applications can construct Puzzle structs
+/// new_puzzle is the only way JS/WASM applications can construct Puzzle structs.
+/// Requires a PuzzleType which will determine the Puzzle's Playmode and act as the label of the
+/// returned Puzzle struct.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn new_puzzle(
@@ -1550,6 +1594,9 @@ pub fn new_puzzle(
     })
 }
 
+/// PuzzleCompleteContainer is used to pass back a puzzle after checking for completeness.
+/// This is to allow the JS client to surrender ownership of the puzzle, then have it returned by
+/// the WASM function is_puzzle_complete.
 #[cfg(target_arch = "wasm32")]
 #[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -1558,6 +1605,10 @@ pub struct PuzzleCompleteContainer {
     pub is_complete: bool,
 }
 
+/// Takes a PuzzleContainer and returns a PuzzleCompleteContainer with a bool at "is_complete"
+/// describing puzzle state. The use of these wrapper containers is to get around ownership issues
+/// over the JS/WASM divide. JS passes ownership of the PuzzleContainer to WASM and WASM returns the
+/// given PuzzleContainer inside the PuzzleCompleteContainer back to the JS caller.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn is_puzzle_complete(
@@ -1570,6 +1621,8 @@ pub fn is_puzzle_complete(
     })
 }
 
+/// WrongAnswerPair is used to get around the inability to use tuples in WASM by converting a tuple of
+/// (got, wanted) to a struct with those labeled fields.
 #[cfg(target_arch = "wasm32")]
 #[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -1578,6 +1631,10 @@ pub struct WrongAnswerPair {
     pub wanted: PlacedWord,
 }
 
+/// WrongAnswersContainer is a wrapper used to deal with ownership issues between the JS/WASM divide.
+/// When the JS client calls wrong_answers_and_solutions, it passes ownership of the PuzzleContainer
+/// that it wants the wrong answers of to WASM. WASM performs the operation, and returns the given
+/// PuzzleContainer in this wrapper (along with the requested data) back to the caller.
 #[cfg(target_arch = "wasm32")]
 #[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -1586,6 +1643,9 @@ pub struct WrongAnswersContainer {
     pub wrong_answer_pairs: Vec<WrongAnswerPair>,
 }
 
+/// wrong_answers_and_solutions acts as calling puzzle_container.puzzle.wrong_answers_and_solutions()?
+/// but formats the output in structs rather than tuples for the calling JS application and returns
+/// ownership of the passed-in PuzzleContainer to the JS side.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn wrong_answers_and_solutions(
@@ -1604,6 +1664,11 @@ pub fn wrong_answers_and_solutions(
     })
 }
 
+/// PuzzleAndResult is a wrapper type used to deal with ownership issues between the JS/WASM divide.
+/// When a JS application calls guess_word, it surrenders ownership of the PuzzleContainer over to
+/// the WASM side, which then performs the requested operation. The WASM then uses this wrapper to
+/// return the result of the operation along with ownership of the given PuzzleContainer back to
+/// the JS side.
 #[cfg(target_arch = "wasm32")]
 #[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -1612,6 +1677,8 @@ pub struct PuzzleAndResult {
     guess_result: GuessResult,
 }
 
+/// guess_word is similar to the native Rust's PlayMode.guess_word(guess) but uses the
+/// PuzzleAndResult wrapper type to return ownership of the passed in PuzzleContainer to the JS side.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn guess_word(
@@ -1658,6 +1725,8 @@ pub fn guess_word(
     })
 }
 
+/// remove_answer calls puzzle_container.puzzle.remove_answer(&placement), then returns ownership
+/// of the PuzzleContainer back to the calling JS side.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn remove_answer(
@@ -1672,10 +1741,9 @@ pub fn remove_answer(
     Ok(puzzle_container)
 }
 
-// This is a debug feature that is called from <repo>/src/crossword_gen_wrapper.ts
-// It improves the quality of error messages that are printed to the dev console
-// For more details see
-// https://github.com/rustwasm/console_error_panic_hook#readme
+/// set_panic_hook is a debug feature that is called from <repo>/src/crossword_gen_wrapper.ts
+/// It improves the quality of error messages that are printed to the dev console
+/// For more details see https://github.com/rustwasm/console_error_panic_hook#readme
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn set_panic_hook() {
