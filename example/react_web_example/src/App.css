@@ -7,6 +7,32 @@
   pointer-events: none;
 }
 
+.puzzle {
+  display: grid;
+  justify-content: center;
+}
+
+.puzzle_row {
+  display: flex;
+}
+
+.puzzle_space {
+  display: inline-block;
+  height: 1.5em;
+  width: 1.5em;
+  border: solid #61dafb;
+  border-width: 1px;
+}
+
+.puzzle_space_char {
+  color: #61dafb;
+}
+
+.puzzle_space_blank {
+  background-color: #61dafb;
+}
+
+
 @media (prefers-reduced-motion: no-preference) {
   .App-logo {
     animation: App-logo-spin infinite 20s linear;

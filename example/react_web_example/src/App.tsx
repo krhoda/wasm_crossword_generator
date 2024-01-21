@@ -1,62 +1,52 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import logo from './logo.svg';
 import './App.css';
-import { CrosswordClient } from "wasm_crossword_gen";
-import type { SolutionConf, Solution } from "wasm_crossword_gen";
+import Crossword from "./components/Crossword";
+import { CrosswordClient, PuzzleContainer, SolutionConf } from "wasm_crossword_gen";
 import { hardcoded_conf } from "./util/crossword_conf";
 
-function App() {
-	CrosswordClient.initialize().then((client) => {
-		try {
-			let puzzle_container = client.generate_crossword_puzzle(
-				hardcoded_conf,
-				"PlacedWord",
-			);
-			console.log(puzzle_container);
+const initPuzzleContainer: PuzzleContainer | null = null;
 
-			for (
-				let i = 0, x = puzzle_container.puzzle.solution.words.length;
-				i < x;
-				i++
-			) {
-				let word = puzzle_container.puzzle.solution.words[i];
-				let res = client.guess_word(puzzle_container, word);
-				puzzle_container = res.puzzle_container;
-				let guess_result = res.guess_result;
-
-				if (guess_result !== "Correct" && guess_result !== "Complete") {
-					console.log("Got Bad Result:", guess_result, word);
-				}
-			}
-
-			let res = client.is_puzzle_complete(puzzle_container);
-			puzzle_container = res.puzzle_container;
-			if (res.is_complete) {
-				console.log("Success!");
-				console.log(puzzle_container);
-			} else {
-				console.log("Failure!");
-			}
-		} catch (e) {
-			console.error(e);
+// Use let-over-lambda to get the power of a global while dealing with one-time async initialization.
+function getClientGenerator(): () => Promise<CrosswordClient> {
+	let client: CrosswordClient | null = null;
+	return async () => {
+		if (!client) {
+			client = await CrosswordClient.initialize();
 		}
-	});
+		return client
+	}
+}
+
+const getClient = getClientGenerator();
+
+async function newPuzzle(conf: SolutionConf): Promise<PuzzleContainer> {
+	let client = await getClient();
+	return client.generate_crossword_puzzle(
+		conf,
+		"PlacedWord",
+	);
+}
+
+function App() {
+	let [puzzleContainer, setPuzzleContainer] = useState(initPuzzleContainer);
+	useEffect(() => {
+		newPuzzle(hardcoded_conf).then((pc) => {
+			setPuzzleContainer(pc);
+			console.log(pc);
+		}).catch((e) => {
+			// TODO: Make Err Container
+			console.error(e);
+		})
+
+	}, [])
+
 
 	return (
 		<div className="App">
 			<header className="App-header">
 				<img src={logo} className="App-logo" alt="logo" />
-				<p>
-					Edit <code>src/App.tsx</code> and save to reload.
-				</p>
-				<a
-					className="App-link"
-					href="https://reactjs.org"
-					target="_blank"
-					rel="noopener noreferrer"
-				>
-					Learn React
-				</a>
+				<Crossword puzzleContainer={puzzleContainer} />
 			</header>
 		</div>
 	);

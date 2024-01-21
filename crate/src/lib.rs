@@ -315,6 +315,7 @@ impl Solution {
     /// Using the passed in SolutionConf, it attempts to generate a puzzle.
     /// If the puzzle errors out or does not meet specs, generation is retried.
     /// If max_retries are hit (or in the case of no max_retries property, after the first)
+    /// Then a CrosswordError::MaxRetries is returned
     pub fn new(conf: SolutionConf) -> Result<Solution, CrosswordError> {
         if let Ok(crossword) = Solution::generate(conf.clone()) {
             return Ok(crossword);
