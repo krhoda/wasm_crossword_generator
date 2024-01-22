@@ -46,6 +46,7 @@ function App() {
 		<div className="App">
 			<header className="App-header">
 				<img src={logo} className="App-logo" alt="logo" />
+				<p>React + WebAssembly Crossword Games</p>
 				<Crossword puzzleContainer={puzzleContainer} />
 			</header>
 		</div>

@@ -7,7 +7,7 @@ export interface CrosswordProps {
 
 export default function Crossword({ puzzleContainer }: CrosswordProps) {
 	if (!puzzleContainer) {
-		return (<p>No puzzle provided, puzzle may be loading...</p>);
+		return (<div className="puzzle_loader"><p>Loading...</p></div>);
 	}
 	return (
 		<div className="puzzle">

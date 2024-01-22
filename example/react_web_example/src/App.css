@@ -3,8 +3,13 @@
 }
 
 .App-logo {
-  height: 40vmin;
+  height: 20vmin;
   pointer-events: none;
+}
+
+.puzzle_loader {
+  width: 15em;
+  height: 15.5em;
 }
 
 .puzzle {
