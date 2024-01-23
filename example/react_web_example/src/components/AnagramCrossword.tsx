@@ -109,10 +109,37 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 		return false;
 	}
 
+	async function guess() {
+		if (puzzleContainer) {
+			let client = await getClient();
+			let {puzzle_container, guess_result} = client.guess_word(puzzleContainer, {
+				placement: {
+					x: 0,
+					y: 0,
+					direction: "Horizontal"
+				},
+				word: {
+					text: selectedLetters.map((sl) => {
+						return sl.letter;
+					}).join(""),
+					clue: null
+				}
+			});
+
+			console.log(guess_result);
+			setPuzzleContainer(puzzle_container);
+		}
+
+		// TODO: err out?
+	}
+
 	return (
 		<Fragment>
 			<Crossword puzzleContainer={puzzleContainer} />
 			<p>Selected Letters: {selectedLetters.map((s) => (`${s.letter}`))}</p>
+			{selectedLetters.length > 2 ? (
+				<button onClick={guess}>Guess Word?</button>
+			) : ""}
 			<div className="letter-container">
 				{solutionChars.split("")
 					.map(
