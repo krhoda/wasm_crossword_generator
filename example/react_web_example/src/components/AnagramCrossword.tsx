@@ -1,25 +1,32 @@
-import React, { useEffect, useState } from 'react';
+import React, { Fragment, useEffect, useState } from 'react';
 import Crossword from './Crossword';
 import { solutions } from '../data/solutions';
-import type { CrosswordClient, PuzzleContainer, SolutionConf } from "wasm_crossword_generator";
+import { CrosswordClient, PuzzleContainer, SolutionConf } from "wasm_crossword_generator";
 
 export interface AnagramCrosswordProps {
-	getClient: () => Promise<CrosswordClient>,
-}
+	getClient: () => Promise<CrosswordClient>
+};
 
 const solutionKeys = Object.keys(solutions);
 
-function shuffleString(s: string): string {
-    let a = s.split(""),
-        n = a.length;
+type SelectedLetter = {
+	letter: string,
+	index: number,
+};
 
-    for(let i = n - 1; i > 0; i--) {
-        let j = Math.floor(Math.random() * (i + 1));
-        let tmp = a[i];
-        a[i] = a[j];
-        a[j] = tmp;
-    }
-    return a.join("");
+const initialSelectedLetters: Array<SelectedLetter> = [];
+
+function shuffleString(s: string): string {
+	let a = s.split(""),
+		n = a.length;
+
+	for (let i = n - 1; i > 0; i--) {
+		let j = Math.floor(Math.random() * (i + 1));
+		let tmp = a[i];
+		a[i] = a[j];
+		a[j] = tmp;
+	}
+	return a.join("");
 }
 
 const initPuzzleContainer: PuzzleContainer | null = null;
@@ -56,7 +63,7 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 
 			try {
 				puzzle = client.generate_crossword_puzzle(conf, "PerWord");
-			} catch(e) {
+			} catch (e) {
 				console.error(e);
 				puzzle = null;
 			}
@@ -64,13 +71,114 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 
 		setPuzzleContainer(puzzle);
 		setSolutionChars(shuffleString(nextSolutionChars));
+	};
+
+	let [selectedLetters, setSelectedLetters] = useState(initialSelectedLetters);
+	useEffect(() => {
+		newPuzzle();
+		return () => {
+			setPuzzleContainer(initPuzzleContainer);
+			setSolutionChars("");
+			setSelectedLetters(initialSelectedLetters);
+		}
+	}, []);
+
+	function letterSelectorHandler(c: string, i: number) {
+		console.log(selectedLetters, c, i);
+		if (selectedLettersContains(c, i)) {
+			console.log("In true")
+			setSelectedLetters([]);
+		} else {
+			console.log("In false")
+			setSelectedLetters([
+				...selectedLetters,
+				{ letter: c, index: i }
+			]);
+		}
+		console.log(selectedLetters, c, i);
 	}
 
-	useEffect(() => {
-		newPuzzle()
-	}, [])
+	function selectedLettersContains(c: string, i: number): boolean {
+		for (let j = 0, x = selectedLetters.length; j < x; j++) {
+			let sl = selectedLetters[j];
+			if (sl.letter == c && sl.index == i) {
+				return true;
+			}
+		}
+
+		return false;
+	}
 
 	return (
-		<Crossword puzzleContainer={puzzleContainer} />
-	)
+		<Fragment>
+			<Crossword puzzleContainer={puzzleContainer} />
+			<p>Selected Letters: {selectedLetters.map((s) => (`${s.letter}`))}</p>
+			<div className="letter-container">
+				{solutionChars.split("")
+					.map(
+						(c, i) => {
+							return (
+								<button
+									key={`${c}-${i}`}
+									className={
+										`letter-button letter-button-${selectedLettersContains(c, i) ? "selected" : "unselected"}`
+									}
+									onClick={() => { letterSelectorHandler(c, i) }}
+								>
+									{c}
+								</button>
+							)
+						}
+					)}
+			</div>
+		</Fragment>
+	);
+};
+
+// <LetterSelector solutionChars={solutionChars} selectedLetters={selectedLetters} setSelectedLetters={setSelectedLetters} />
+
+type LetterSelectorProps = {
+	solutionChars: string,
+	selectedLetters: Array<SelectedLetter>,
+	setSelectedLetters: (nextSelectedLetters: Array<SelectedLetter>) => void,
+};
+
+function LetterSelector({ solutionChars, selectedLetters, setSelectedLetters }: LetterSelectorProps) {
+	const charArray = solutionChars.split("");
+	function f(c: string, i: number): SelectedLetter {
+		return { letter: c, index: i }
+	};
+
+	return (
+		<div className="letter-container">
+			{charArray
+				.map(f)
+				.map(
+					(selectedLetter) => (
+						<button
+							key={`${selectedLetter.letter}-${selectedLetter.index}`}
+							className={
+								`letter-button letter-button-${selectedLetters.includes(selectedLetter) ? "selected" : "unselected"}`
+							}
+							onClick={() => {
+								console.log(selectedLetter);
+								console.log(selectedLetters);
+								if (selectedLetters.includes(selectedLetter)) {
+									setSelectedLetters([]);
+								} else {
+									setSelectedLetters([
+										...selectedLetters,
+										selectedLetter
+									]);
+								}
+							}}
+
+						>
+							{selectedLetter.letter}
+						</button>
+					)
+				)
+			}
+		</div>
+	);
 }

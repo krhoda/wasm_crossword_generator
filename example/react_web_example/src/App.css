@@ -53,6 +53,32 @@
   font-size: .7em;
 }
 
+.letter-container {
+  display: flex;
+}
+
+.letter-button {
+  border-radius: 50%;
+  display: inline-block;
+  height: 2em;
+  width: 2em;
+  text-align: center;
+  margin: .2em;
+  font-size: 1em;
+}
+
+.letter-button-unselected {
+  background-color: #282c34;
+  border: solid #61dafb;
+  color: #62dafb;
+}
+
+.letter-button-selected {
+  color: #282c34;
+  border: none;
+  background-color: #62dafb;
+}
+
 
 @media (prefers-reduced-motion: no-preference) {
   .App-logo {
