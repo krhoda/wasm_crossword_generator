@@ -1738,7 +1738,7 @@ pub fn remove_answer(
         return Err(CrosswordError::BadPuzzleType);
     }
     let mut puzzle_container = puzzle_container;
-    puzzle_container.puzzle.remove_answer(&placement);
+    puzzle_container.puzzle.remove_answer(&placement)?;
     Ok(puzzle_container)
 }
 

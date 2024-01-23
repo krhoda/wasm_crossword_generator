@@ -1,4 +1,4 @@
-import type { SolutionConf, Word } from "wasm_crossword_gen";
+import type { SolutionConf, Word } from "wasm_crossword_generator";
 
 const words = [
 	{ text: "finders", clue: null },

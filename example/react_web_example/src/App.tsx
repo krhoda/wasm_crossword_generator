@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import logo from './logo.svg';
 import './App.css';
-import Crossword from "./components/Crossword";
-import { CrosswordClient, PuzzleContainer, SolutionConf } from "wasm_crossword_gen";
+import AnagramCrossword from "./components/AnagramCrossword";
+// TODO: Fix issue with PuzzleType import
+import { CrosswordClient, PuzzleContainer, SolutionConf /*, PuzzleType */ } from "wasm_crossword_generator";
 import { hardcoded_conf } from "./util/crossword_conf";
-
-const initPuzzleContainer: PuzzleContainer | null = null;
 
 // Use let-over-lambda to get the power of a global while dealing with one-time async initialization.
 function getClientGenerator(): () => Promise<CrosswordClient> {
@@ -29,28 +28,23 @@ async function newPuzzle(conf: SolutionConf): Promise<PuzzleContainer> {
 }
 
 function App() {
-	let [puzzleContainer, setPuzzleContainer] = useState(initPuzzleContainer);
-	useEffect(() => {
-		newPuzzle(hardcoded_conf).then((pc) => {
-			setPuzzleContainer(pc);
-			console.log(pc);
-		}).catch((e) => {
-			// TODO: Make Err Container
-			console.error(e);
-		})
-
-	}, [])
-
-
 	return (
 		<div className="App">
 			<header className="App-header">
 				<img src={logo} className="App-logo" alt="logo" />
 				<p>React + WebAssembly Crossword Games</p>
-				<Crossword puzzleContainer={puzzleContainer} />
+				<AnagramCrossword  getClient={getClient}/>
 			</header>
 		</div>
 	);
 }
+
+// TODO: Add Header:
+/*
+<div className="button_container">
+	<button className="nav_button">Anagram-Based<br />Simple Crossword</button>
+	<button className="nav_button">Classic<br />Crossword</button>
+</div>
+*/
 
 export default App;

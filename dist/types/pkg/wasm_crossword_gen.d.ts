@@ -1,39 +1,57 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
+* new_solution is the only way JS/WASM applications can construct Solution structs
 * @param {SolutionConf} conf
 * @returns {Solution}
 */
 export function new_solution(conf: SolutionConf): Solution;
 /**
+* new_puzzle is the only way JS/WASM applications can construct Puzzle structs.
+* Requires a PuzzleType which will determine the Puzzle's Playmode and act as the label of the
+* returned Puzzle struct.
 * @param {SolutionConf} conf
 * @param {PuzzleType} puzzle_type
 * @returns {PuzzleContainer}
 */
 export function new_puzzle(conf: SolutionConf, puzzle_type: PuzzleType): PuzzleContainer;
 /**
+* Takes a PuzzleContainer and returns a PuzzleCompleteContainer with a bool at "is_complete"
+* describing puzzle state. The use of these wrapper containers is to get around ownership issues
+* over the JS/WASM divide. JS passes ownership of the PuzzleContainer to WASM and WASM returns the
+* given PuzzleContainer inside the PuzzleCompleteContainer back to the JS caller.
 * @param {PuzzleContainer} puzzle_container
 * @returns {PuzzleCompleteContainer}
 */
 export function is_puzzle_complete(puzzle_container: PuzzleContainer): PuzzleCompleteContainer;
 /**
+* wrong_answers_and_solutions acts as calling puzzle_container.puzzle.wrong_answers_and_solutions()?
+* but formats the output in structs rather than tuples for the calling JS application and returns
+* ownership of the passed-in PuzzleContainer to the JS side.
 * @param {PuzzleContainer} puzzle_container
 * @returns {WrongAnswersContainer}
 */
 export function wrong_answers_and_solutions(puzzle_container: PuzzleContainer): WrongAnswersContainer;
 /**
+* guess_word is similar to the native Rust's PlayMode.guess_word(guess) but uses the
+* PuzzleAndResult wrapper type to return ownership of the passed in PuzzleContainer to the JS side.
 * @param {PuzzleContainer} puzzle_container
 * @param {PlacedWord} guess
 * @returns {PuzzleAndResult}
 */
 export function guess_word(puzzle_container: PuzzleContainer, guess: PlacedWord): PuzzleAndResult;
 /**
+* remove_answer calls puzzle_container.puzzle.remove_answer(&placement), then returns ownership
+* of the PuzzleContainer back to the calling JS side.
 * @param {PuzzleContainer} puzzle_container
 * @param {Placement} placement
 * @returns {PuzzleContainer}
 */
 export function remove_answer(puzzle_container: PuzzleContainer, placement: Placement): PuzzleContainer;
 /**
+* set_panic_hook is a debug feature that is called from <repo>/src/crossword_gen_wrapper.ts
+* It improves the quality of error messages that are printed to the dev console
+* For more details see https://github.com/rustwasm/console_error_panic_hook#readme
 */
 export function set_panic_hook(): void;
 export interface Word {

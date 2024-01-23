@@ -37,6 +37,22 @@
   background-color: #61dafb;
 }
 
+.button_container  {
+  display: flex;
+  margin-bottom: 1em;
+}
+
+.nav_button {
+  display: inline-block;
+  color: #62dafb;
+  border: solid #61dafb;
+  background-color: #282c34;
+  padding: .25em;
+  margin-left: .15em;
+  margin-right: .15em;
+  font-size: .7em;
+}
+
 
 @media (prefers-reduced-motion: no-preference) {
   .App-logo {
