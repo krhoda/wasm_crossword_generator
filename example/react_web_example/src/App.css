@@ -79,6 +79,16 @@
   background-color: #62dafb;
 }
 
+.guess-button {
+  background-color: #282c34;
+  border: solid #61dafb 4px;
+  border-radius: 95%;
+  color: #62dafb;
+  margin-bottom: 1em;
+  padding: 1.25em;
+  font-size: .75em;
+}
+
 
 @media (prefers-reduced-motion: no-preference) {
   .App-logo {

@@ -30,6 +30,7 @@ function shuffleString(s: string): string {
 }
 
 const initPuzzleContainer: PuzzleContainer | null = null;
+
 export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 	let [puzzleContainer, setPuzzleContainer] = useState(initPuzzleContainer);
 	let [solutionChars, setSolutionChars] = useState("");
@@ -48,8 +49,8 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 				width: 10,
 				max_words: 20,
 				initial_placement: {
-					min_letter_count: 6,
-					strategy: null,
+					min_letter_count: nextSolutionChars.length,
+					strategy: { Center: "Horizontal"},
 				},
 				words,
 				requirements: {
@@ -84,18 +85,14 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 	}, []);
 
 	function letterSelectorHandler(c: string, i: number) {
-		console.log(selectedLetters, c, i);
 		if (selectedLettersContains(c, i)) {
-			console.log("In true")
 			setSelectedLetters([]);
 		} else {
-			console.log("In false")
 			setSelectedLetters([
 				...selectedLetters,
 				{ letter: c, index: i }
 			]);
 		}
-		console.log(selectedLetters, c, i);
 	}
 
 	function selectedLettersContains(c: string, i: number): boolean {
@@ -112,7 +109,7 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 	async function guess() {
 		if (puzzleContainer) {
 			let client = await getClient();
-			let {puzzle_container, guess_result} = client.guess_word(puzzleContainer, {
+			let { puzzle_container, guess_result } = client.guess_word(puzzleContainer, {
 				placement: {
 					x: 0,
 					y: 0,
@@ -126,8 +123,13 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 				}
 			});
 
-			console.log(guess_result);
+			if (guess_result == "Wrong") {
+				alert("Wrong guess!")
+			} else {
+				alert("Amazing!")
+			}
 			setPuzzleContainer(puzzle_container);
+			setSelectedLetters([]);
 		}
 
 		// TODO: err out?
@@ -137,9 +139,9 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 		<Fragment>
 			<Crossword puzzleContainer={puzzleContainer} />
 			<p>Selected Letters: {selectedLetters.map((s) => (`${s.letter}`))}</p>
-			{selectedLetters.length > 2 ? (
-				<button onClick={guess}>Guess Word?</button>
-			) : ""}
+			<button className="guess-button" disabled={selectedLetters.length < 3} onClick={guess}>
+				{selectedLetters.length < 3 ? "Enter a Guess!" : "Guess Word?"}
+			</button>
 			<div className="letter-container">
 				{solutionChars.split("")
 					.map(
@@ -188,8 +190,6 @@ function LetterSelector({ solutionChars, selectedLetters, setSelectedLetters }: 
 								`letter-button letter-button-${selectedLetters.includes(selectedLetter) ? "selected" : "unselected"}`
 							}
 							onClick={() => {
-								console.log(selectedLetter);
-								console.log(selectedLetters);
 								if (selectedLetters.includes(selectedLetter)) {
 									setSelectedLetters([]);
 								} else {

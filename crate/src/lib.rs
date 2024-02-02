@@ -1,8 +1,8 @@
 //! #  WASM Crossword Generator
 //!
 //! `wasm_crossword_generator` is a library to generate and operate crossword puzzles with first-class
-//! WebAssembly support for the use in the browser or other WASM environments. It provides a
-//! a configurable `Solution`s generator and multiple stateful `Playmode`s. It is WASM-first so
+//! WebAssembly support for use in the browser or other WASM environments. It provides a
+//! configurable `Solution`s generator and multiple stateful `Playmode`s. It is WASM-first so
 //! some design trade-offs are needed such as not using const generics, creating wrapper types, and
 //! using labelled structs instead of tuples. See https://github.com/krhoda/wasm_crossword_generator
 //! for more details and instructions on how to run examples.
@@ -34,7 +34,7 @@ const MIN_LETTER_COUNT: usize = 3;
 /// Word is a record containing a potential portion of the Crossword answer at "text"
 /// along with an optional "clue" field.
 /// The "text" field will be split using .chars() with all the implications that brings.
-#[derive(Clone, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -62,7 +62,7 @@ pub enum Direction {
 }
 
 impl Direction {
-    /// The implementation of Direction exposes a logical "not" fn called "other"
+    /// other is logical "not" for Direction
     pub fn other(&self) -> Direction {
         match self {
             Direction::Horizontal => Direction::Verticle,
@@ -82,7 +82,7 @@ impl Distribution<Direction> for Standard {
 }
 
 /// Placement describes a location on the crossword puzzle. Used to mark word origins.
-#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -96,7 +96,7 @@ pub struct Placement {
 
 /// PlacedWord represents a word which makes up the crossword puzzle's answers
 /// The placement field marks the origin and orientation of the word.
-#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -111,7 +111,7 @@ pub struct PlacedWord {
 /// Within the interior "row" vector, there is either a None for a blank space
 /// or a Some(c) where c: char which would be a component of the crossword solution.
 /// Constructed by passing in a "width" param.
-#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -171,7 +171,7 @@ pub enum CrosswordError {
 /// "min_words" the minimum number of words that make up the answer
 /// "max_empty_columns" the number of columns that can be completely empty
 /// "max_empty_rows" the number of rows that can be completely empty
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -192,7 +192,7 @@ pub struct CrosswordReqs {
 
 /// CrosswordInitialPlacementStrategy allows the caller to specifiy how to place the first word
 /// of the puzzle. Can be randomly generated using local RNG, which is how default is impl'd.
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -242,7 +242,7 @@ impl std::default::Default for CrosswordInitialPlacementStrategy {
 
 /// CrosswordInitialPlacement allows the caller to specify where and how large the initial word
 /// placed should be.
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -265,7 +265,7 @@ impl std::default::Default for CrosswordInitialPlacement {
 }
 
 /// SolutionConf is the structure used to configure the generation crossword solutions.
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -293,7 +293,7 @@ pub struct SolutionConf {
 
 /// Solution represents a complete crossword structure. Does not include stateful
 /// constructs for user input.
-#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -501,37 +501,57 @@ impl Solution {
         // minimum but less than the initial word's minimum. These will be appended back onto the
         // "words"
         let mut skipped_words: Vec<Word> = Vec::new();
-        match words.pop() {
-            None => Err(CrosswordError::NoValidInitialWords),
-            Some(word) => {
-                let mut word = word;
-                loop {
-                    match self.try_initial_placement(min_letter_count, &strategy, word) {
-                        Ok(_) => {
-                            break;
-                        }
+        let mut done = false;
+        while !done {
+            match words.pop() {
+                Some(word) => match self.try_initial_placement(min_letter_count, &strategy, word) {
+                    Ok(_) => {
+                        break;
+                    }
 
-                        Err(w) => {
-                            skipped_words.push(w);
-
-                            match words.pop() {
-                                None => {
-                                    return Err(CrosswordError::NoValidInitialWords);
-                                }
-                                Some(w) => {
-                                    word = w;
-                                }
-                            }
-                        }
-                    };
-                }
-
-                // TODO: Make sure this really results in place, it may need to have skip.append
-                skipped_words.reverse();
-                words.append(&mut skipped_words);
-                Ok(words)
+                    Err(w) => {
+                        skipped_words.push(w);
+                    }
+                },
+                None => done = true,
             }
         }
+
+        skipped_words.reverse();
+        words.append(&mut skipped_words);
+        Ok(words)
+
+        // match words.pop() {
+        //     None => Err(CrosswordError::NoValidInitialWords),
+        //     Some(word) => {
+        //         let mut word = word;
+        //         loop {
+        //             match self.try_initial_placement(min_letter_count, &strategy, word) {
+        //                 Ok(_) => {
+        //                     break;
+        //                 }
+
+        //                 Err(w) => {
+        //                     skipped_words.push(w);
+
+        //                     match words.pop() {
+        //                         None => {
+        //                             return Err(CrosswordError::NoValidInitialWords);
+        //                         }
+        //                         Some(w) => {
+        //                             word = w;
+        //                         }
+        //                     }
+        //                 }
+        //             };
+        //         }
+
+        //         // TODO: Make sure this really results in place, it may need to have skip.append
+        //         skipped_words.reverse();
+        //         words.append(&mut skipped_words);
+        //         Ok(words)
+        //     }
+        // }
     }
 
     // returns true if the word was placed, false if it fails to meet some requirement
@@ -547,7 +567,8 @@ impl Solution {
         };
 
         let count = word.text.chars().count();
-        if count < min_letter_count && count > max_letter_count {
+
+        if count < min_letter_count || count > max_letter_count {
             return Err(word);
         };
 
@@ -608,6 +629,7 @@ impl Solution {
                         }
                     }
                 };
+
                 self._unchecked_place(word, mid_x, mid_y, w_mid, direction);
                 Ok(())
             }
@@ -1089,7 +1111,7 @@ impl Solution {
 /// space (false), and has a char_slot that is an Option<char>. This could be represented as an
 /// Option<Option<char>> if this were only targeting Rust, but that approach becomes ambiguous when
 /// De/Serializing from JS.
-#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -1102,7 +1124,7 @@ pub struct PuzzleSpace {
 
 /// PuzzleRow contains a vector of PuzzleSpaces at "row", represetning a stateful row of the
 /// crossword's grid.
-#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -1114,7 +1136,7 @@ pub struct PuzzleRow {
 
 /// Puzzle is a stateful game composed of a static solution, a stateful grid, and a list of player
 /// submitted answers.
-#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -1319,7 +1341,7 @@ impl Puzzle {
 /// Not all results are used with all Playmodes.
 /// This allows a calling application to distiguish between a bad answer from a player and a bad state
 /// in the Puzzle by returning an error in the case of the latter.
-#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -1357,7 +1379,7 @@ where
 /// It accumulates player answers and can return if it's complete or not, but does not do so
 /// automatically on guess like other Playmodes. It exposes a "remove_answer" function to allow the
 /// player to remove guesses they deem as bad when dealing with an incorrect Puzzle.
-#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -1415,7 +1437,7 @@ impl Playmode for ClassicPuzzle {
 /// PlacedWordPuzzle Playmode expects the guess to a placement and word, then only adds the answer
 /// to the puzzle state if the guess is valid. Returns a "Complete" result when the last correct guess
 /// is given.
-#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -1473,7 +1495,7 @@ impl Playmode for PlacedWordPuzzle {
 /// PerWordPuzzle Playmode expects the user to guess a word without a Placement. If the word is
 /// present, it is added to the Puzzle at the correct placement. On the last word being correctly
 /// guessed, it returns GuessResult::Complete.
-#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -1558,7 +1580,7 @@ pub fn new_solution(conf: SolutionConf) -> Result<Solution, CrosswordError> {
 
 /// PuzzleType allows both sides of the JS/WASM divide to reference different types of Playmode.
 #[cfg(target_arch = "wasm32")]
-#[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub enum PuzzleType {
     Classic,
@@ -1571,7 +1593,7 @@ pub enum PuzzleType {
 /// identifiable by their type, but when they are De/Serialized, it is impossible to distinguish
 /// between them, since they are all of the same shape: { puzzle: Puzzle }.
 #[cfg(target_arch = "wasm32")]
-#[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct PuzzleContainer {
     /// Acts as a label for "puzzle".
@@ -1599,7 +1621,7 @@ pub fn new_puzzle(
 /// This is to allow the JS client to surrender ownership of the puzzle, then have it returned by
 /// the WASM function is_puzzle_complete.
 #[cfg(target_arch = "wasm32")]
-#[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct PuzzleCompleteContainer {
     pub puzzle_container: PuzzleContainer,
@@ -1625,7 +1647,7 @@ pub fn is_puzzle_complete(
 /// WrongAnswerPair is used to get around the inability to use tuples in WASM by converting a tuple of
 /// (got, wanted) to a struct with those labeled fields.
 #[cfg(target_arch = "wasm32")]
-#[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct WrongAnswerPair {
     pub got: PlacedWord,
@@ -1637,7 +1659,7 @@ pub struct WrongAnswerPair {
 /// that it wants the wrong answers of to WASM. WASM performs the operation, and returns the given
 /// PuzzleContainer in this wrapper (along with the requested data) back to the caller.
 #[cfg(target_arch = "wasm32")]
-#[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct WrongAnswersContainer {
     pub puzzle_container: PuzzleContainer,
@@ -1671,7 +1693,7 @@ pub fn wrong_answers_and_solutions(
 /// return the result of the operation along with ownership of the given PuzzleContainer back to
 /// the JS side.
 #[cfg(target_arch = "wasm32")]
-#[derive(Clone, Deserialize, PartialEq, Serialize, Tsify)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct PuzzleAndResult {
     puzzle_container: PuzzleContainer,
