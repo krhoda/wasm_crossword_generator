@@ -44,10 +44,11 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 			let randomSolutionIndex = Math.floor(Math.random() * solutionKeys.length);
 			nextSolutionChars = solutionKeys[randomSolutionIndex];
 			let words = solutions[nextSolutionChars];
+
 			let conf: SolutionConf = {
 				height: 10,
 				width: 10,
-				max_words: 20,
+				max_words: 22,
 				initial_placement: {
 					min_letter_count: nextSolutionChars.length,
 					strategy: { Center: "Horizontal"},
@@ -55,7 +56,7 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 				words,
 				requirements: {
 					max_retries: 100,
-					min_words: 10,
+					min_words: 15,
 					min_letters_per_word: 3,
 					max_empty_columns: 0,
 					max_empty_rows: 0
