@@ -55,7 +55,7 @@ assert(guess_result == "Complete")
 
 A concrete use of this library is found in the example Single-Page Application repo at [example/react_web_example].
 
-The `CrosswordClient` abstraction found at [src/crossword_generator_wrapper.ts] contains most of the information to run the puzzle. The types defined in [src/pkg/wasm_crossword_generator.d.ts] are useful too.
+The `CrosswordClient` abstraction found [here](src/crossword_generator_wrapper.ts) contains most of the information to run the puzzle. The types defined [here](dist/types/pkg/wasm_crossword_generator.d.ts) are useful too.
 
 The playmodes are "Classic", "PlacedWord", and "PerWord". "Classic" doesn't tell the user if the guess is correct or not and allows the user to save (and later, remove) incorrect answers. "PlacedWord" does tell the user if the guess is correct at time of the guess. "PerWord" is like placed word, but does not check the "Placement" portion of a guess.
 
