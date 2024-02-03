@@ -3,9 +3,13 @@ name = "wasm_crossword_generator"
 version = "0.0.1"
 authors = ["K <kelseydrhoda@gmail.com>"]
 edition = "2021"
+homepage = "https://github.com/krhoda/wasm_crossword_generator/"
+documentation = "https://docs.rs/wasm_crossword_generator/latest/wasm_crossword_generator/"
 repository = "https://github.com/krhoda/wasm_crossword_generator/"
 description = "A pure Rust library for crossword puzzle generation with first-class WASM support."
 license = "MIT OR Apache-2.0"
+readme = "README.md"
+keywords = ["game", "words", "crossword", "wasm", "WebAssembly"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]

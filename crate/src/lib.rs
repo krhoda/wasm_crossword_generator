@@ -1606,6 +1606,7 @@ impl Playmode for PlacedWordPuzzle {
 /// guessed, it returns GuessResult::Complete.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
+    target_arch = "wasm32",
     any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
