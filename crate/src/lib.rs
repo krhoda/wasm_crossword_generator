@@ -1,25 +1,25 @@
 //! #  WASM Crossword Generator
 //!
 //! `wasm_crossword_generator` is a library for generating and operating crossword puzzles with
-//! first-class WebAssembly support targeting the browser and other WASM environments. While
+//! first-class WebAssembly (WASM) support targeting the browser and other WASM environments. While
 //! fully functional and ergonomic as a Rust library, the design is WASM-first so some trade-offs are
-//! made such as not using const generics, avoiding `Option<Option<T>>` because of abiguity during
-//! JSON de/serialization, and prefering named structs to tuples.
-//! This library exposes configuration options for specifying the size and density of the crossword.
-//! Three stateful "playmodes" are also supported to facilite different styles of puzzle.
+//! made such as not using const generics, avoiding `Option<Option<T>>` because of ambiguity during
+//! JSON de/serialization, and using structs over tuples.
 //!
-//! Example usage in pure Rust looks like:
+//! This library exposes configuration options for specifying the size and density of the crossword.
+//! Three stateful implementations of [Playmodes](Playmode) are also supported to facilitate different styles of puzzle.
+//!
+//! The most basic example of usage in pure Rust looks like:
 //! ```rust
 //! # fn main() -> Result<(), wasm_crossword_generator::CrosswordError> {
 //! use wasm_crossword_generator::*;
-//! use serde::{Deserialize, Serialize};
 //!
 //! let words: Vec<Word> = vec![
 //!   Word { text: "library".to_string(), clue: Some("Not a framework.".to_string()) },
 //!   // In a real usage, there would be more entries.
 //! ];
 //!
-//! // NOTE: A real SolutionConf would probably want "requirements" to allow for retrying crossword
+//! // A real SolutionConf would probably want "requirements" to allow for retrying crossword
 //! // generation. Because there is only one word, we know we'll get the world's simplest puzzle in
 //! // one try.
 //! let solution_conf = SolutionConf {
@@ -45,32 +45,64 @@
 //!
 //! let guess_result = puzzle.guess_word(guess)?;
 //!
-//! // Because there is only one word, the puzzle will result in "Complete" instead of "Correct"
+//! // Because there is only one word, the guess will result in "Complete" instead of "Correct"
 //! assert_eq!(guess_result, GuessResult::Complete);
 //! # Ok(())
 //! # }
 //!
 //! ```
-//! A quick tour of the structures looks like:
+//! A quick tour of the pure Rust structures looks like:
 //!
-//! `Word` a structure containing the field `text` (the string whose characters make up the answer)
+//! [Word] a structure containing the field `text` (the string whose characters make up the answer)
 //! and an optional, self-descriptive `clue` field.
 //!
-//! `Direction` is an enum of either `Verticle` or `Horizontal`, used to describe a `Word`'s
+//! [Direction] is an enum of either `Verticle` or `Horizontal`, used to describe a `Word`'s
 //! orientation.
 //!
-//! `Placement` is a struct containing a pair of coordinates (the fields `x` and `y`) and a
+//! [Placement] is a struct containing a pair of coordinates (the fields `x` and `y`) and a
 //! `direction` field of type `Direction`.
 //!
-//! `PlacedWord` is a combination of a `Word` (field: `word`) and `Placement` (field: `placement`).
+//! [PlacedWord] is a combination of a `Word` (field: `word`) and `Placement` (field: `placement`).
 //! This is used for the internal representation of the `Solution` in it's list of answers.
 //!
-//! `SolutionRow` is a struct with a `row` field of type `Vec<Option<char>>`. This is used to
+//! [SolutionRow] is a struct with a `row` field of type `Vec<Option<char>>`. This is used to
 //! to represent a row of the crossword, with each item being of type `Some(c: char)` in the case
 //! of the square being part of a solution or `None` in the case that the space is blank.
 //!
+//! [Solution] is a struct with a `grid` field that is a `Vec<SolutionRow>` and a `words` field
+//! that is a `Vec<PlacedWord>`, along with a `width` and `height`. This is used by the puzzle
+//! structs to check player answers and build the stateful game.
+//!
+//! [SolutionConf] is a struct containing a set of options for generating [Solutions](Solution).
+//! It includes optional sub-structs [CrosswordReqs] and [CrosswordInitialPlacement] among several
+//! other fields.
+//!
+//! [PuzzleSpace] is a struct that represents a stateful space in a game. Contains a bool indicating
+//! whether there would be a letter if the puzzle were solved, and a `Option<char>` representing
+//! whether a guess has been made or not.
+//!
+//! [PuzzleRow] is similiar to [SolutionRow], but the `row` field is a `Vec<PuzzleSpace>`.
+//!
+//! [Puzzle] is a struct representing a stateful crossword puzzle game that responds to user input.
+//! It containes a `solution` field with it's corresponding [Solution], a `player_answers` field that
+//! is a `Vec<PlacedWord>` representing the player's (not neccessarily correct) answers, and `grid`
+//! field similar to the one found in [Solution], but this time of type `Vec<PuzzleRow>`.
+//!
+//! Three [Playmodes](Playmode) exist which make use of the [Puzzle] struct as their internal state:
+//! [ClassicPuzzle] -- a clue-based crossword that doesn't tell the user if their guess is correct,
+//! [PlacedWordPuzzle] -- a puzzle where the player specifies a PlacedWord guess and is told if the
+//! guess was correct, and [PerWordPuzzle] where the player simply guesses a word and if it is present
+//! in the puzzle, the player is told that the guess is correct.
+//!
+//! Finally, the [GuessResult] enum encapsulates the possible results from all [Playmodes](Playmode).
+//!
+//! Additionally, there are some types used specifically for WASM-based scenerios, mostly wrapper
+//! types, specifiers, and types used to return data passed in from the caller back to the caller.
+//! These include: [PuzzleType], [PuzzleContainer], [PuzzleCompleteContainer], [WrongAnswerPair],
+//! [WrongAnswersContainer], and [PuzzleAndResult].
+//!
 //! See [the project repo](https://github.com/krhoda/wasm_crossword_generator) for more details
-//! and instructions on how to run examples.
+//! and instructions on how to run examples. A specifically WASM-based example is found [here](https://github.com/krhoda/wasm_crossword_generator/tree/main/example/react_web_example).
 
 #![warn(missing_docs)]
 
@@ -86,9 +118,9 @@ use std::{
 };
 use thiserror::Error;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(doc, target_arch = "wasm32"))]
 use tsify::Tsify;
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(doc, target_arch = "wasm32"))]
 use wasm_bindgen::prelude::*;
 
 // !!! Building Blocks !!!
@@ -103,7 +135,7 @@ const MIN_LETTER_COUNT: usize = 3;
 /// The "text" field will be split using .chars() with all the implications that brings.
 #[derive(Clone, Debug, Deserialize, Eq, Serialize)]
 #[cfg_attr(
-    target_arch = "wasm32",
+    any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -127,7 +159,7 @@ impl PartialEq for Word {
 /// the local RNG.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
-    target_arch = "wasm32",
+    any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -161,7 +193,7 @@ impl Distribution<Direction> for Standard {
 /// Placement describes a location on the crossword puzzle. Used to mark word origins.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
-    target_arch = "wasm32",
+    any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -178,7 +210,7 @@ pub struct Placement {
 /// The placement field marks the origin and orientation of the word.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
-    target_arch = "wasm32",
+    any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -195,7 +227,7 @@ pub struct PlacedWord {
 /// Constructed by passing in a "width" param.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
-    target_arch = "wasm32",
+    any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -271,7 +303,7 @@ pub enum CrosswordError {
 /// "max_empty_rows" the number of rows that can be completely empty
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[cfg_attr(
-    target_arch = "wasm32",
+    any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -292,7 +324,7 @@ pub struct CrosswordReqs {
 /// of the puzzle. Can be randomly generated using local RNG, which is how default is impl'd.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[cfg_attr(
-    target_arch = "wasm32",
+    any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -348,7 +380,7 @@ impl std::default::Default for CrosswordInitialPlacementStrategy {
 /// placed should be.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[cfg_attr(
-    target_arch = "wasm32",
+    any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -371,7 +403,7 @@ impl std::default::Default for CrosswordInitialPlacement {
 /// SolutionConf is the structure used to configure the generation crossword solutions.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[cfg_attr(
-    target_arch = "wasm32",
+    any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -399,7 +431,7 @@ pub struct SolutionConf {
 /// constructs for user input.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
-    target_arch = "wasm32",
+    any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -1180,12 +1212,12 @@ impl Solution {
 
 /// PuzzleSpace functions as a stateful structure representing whether a char has been guessed
 /// for this space. Contains a boolean representing whether it can take a char (true) or is an empty
-/// space (false), and has a char_slot that is an Option<char>. This could be represented as an
-/// Option<Option<char>> if this were only targeting Rust, but that approach becomes ambiguous when
+/// space (false), and has a char_slot that is an `Option<char>`. This could be represented as an
+/// `Option<Option<char>>` if this were only targeting Rust, but that approach becomes ambiguous when
 /// De/Serializing from JS.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
-    target_arch = "wasm32",
+    any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -1198,7 +1230,7 @@ pub struct PuzzleSpace {
 /// crossword's grid.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
-    target_arch = "wasm32",
+    any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -1211,7 +1243,7 @@ pub struct PuzzleRow {
 /// submitted answers.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
-    target_arch = "wasm32",
+    any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -1420,7 +1452,7 @@ impl Puzzle {
 /// in the Puzzle by returning an error in the case of the latter.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
-    target_arch = "wasm32",
+    any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -1458,7 +1490,7 @@ where
 /// player to remove guesses they deem as bad when dealing with an incorrect Puzzle.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
-    target_arch = "wasm32",
+    any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -1516,7 +1548,7 @@ impl Playmode for ClassicPuzzle {
 /// is given.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
-    target_arch = "wasm32",
+    any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -1574,7 +1606,7 @@ impl Playmode for PlacedWordPuzzle {
 /// guessed, it returns GuessResult::Complete.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(
-    target_arch = "wasm32",
+    any(doc, target_arch = "wasm32"),
     derive(Tsify),
     tsify(into_wasm_abi, from_wasm_abi)
 )]
@@ -1640,7 +1672,7 @@ extern "C" {
 */
 
 // This allows the CrosswordError to be returned from WASM-compiled functions
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(doc, target_arch = "wasm32"))]
 #[allow(clippy::from_over_into)]
 impl std::convert::Into<JsValue> for CrosswordError {
     fn into(self) -> JsValue {
@@ -1649,14 +1681,14 @@ impl std::convert::Into<JsValue> for CrosswordError {
 }
 
 /// new_solution is the only way JS/WASM applications can construct Solution structs
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(doc, target_arch = "wasm32"))]
 #[wasm_bindgen]
 pub fn new_solution(conf: SolutionConf) -> Result<Solution, CrosswordError> {
     Solution::new(conf)
 }
 
 /// PuzzleType allows both sides of the JS/WASM divide to reference different types of Playmode.
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(doc, target_arch = "wasm32"))]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub enum PuzzleType {
@@ -1672,7 +1704,7 @@ pub enum PuzzleType {
 /// struct is passed over the barrier and back. In normal Rust, each of the Playmode structs are
 /// identifiable by their type, but when they are De/Serialized, it is impossible to distinguish
 /// between them, since they are all of the same shape: { puzzle: Puzzle }.
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(doc, target_arch = "wasm32"))]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct PuzzleContainer {
@@ -1685,7 +1717,7 @@ pub struct PuzzleContainer {
 /// new_puzzle is the only way JS/WASM applications can construct Puzzle structs.
 /// Requires a PuzzleType which will determine the Puzzle's Playmode and act as the label of the
 /// returned Puzzle struct.
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(doc, target_arch = "wasm32"))]
 #[wasm_bindgen]
 pub fn new_puzzle(
     conf: SolutionConf,
@@ -1700,7 +1732,7 @@ pub fn new_puzzle(
 /// PuzzleCompleteContainer is used to pass back a puzzle after checking for completeness.
 /// This is to allow the JS client to surrender ownership of the puzzle, then have it returned by
 /// the WASM function is_puzzle_complete.
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(doc, target_arch = "wasm32"))]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct PuzzleCompleteContainer {
@@ -1714,7 +1746,7 @@ pub struct PuzzleCompleteContainer {
 /// describing puzzle state. The use of these wrapper containers is to get around ownership issues
 /// over the JS/WASM divide. JS passes ownership of the PuzzleContainer to WASM and WASM returns the
 /// given PuzzleContainer inside the PuzzleCompleteContainer back to the JS caller.
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(doc, target_arch = "wasm32"))]
 #[wasm_bindgen]
 pub fn is_puzzle_complete(
     puzzle_container: PuzzleContainer,
@@ -1728,7 +1760,7 @@ pub fn is_puzzle_complete(
 
 /// WrongAnswerPair is used to get around the inability to use tuples in WASM by converting a tuple of
 /// (got, wanted) to a struct with those labeled fields.
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(doc, target_arch = "wasm32"))]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct WrongAnswerPair {
@@ -1742,7 +1774,7 @@ pub struct WrongAnswerPair {
 /// When the JS client calls wrong_answers_and_solutions, it passes ownership of the PuzzleContainer
 /// that it wants the wrong answers of to WASM. WASM performs the operation, and returns the given
 /// PuzzleContainer in this wrapper (along with the requested data) back to the caller.
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(doc, target_arch = "wasm32"))]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct WrongAnswersContainer {
@@ -1756,7 +1788,7 @@ pub struct WrongAnswersContainer {
 /// wrong_answers_and_solutions acts as calling puzzle_container.puzzle.wrong_answers_and_solutions()?
 /// but formats the output in structs rather than tuples for the calling JS application and returns
 /// ownership of the passed-in PuzzleContainer to the JS side.
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(doc, target_arch = "wasm32"))]
 #[wasm_bindgen]
 pub fn wrong_answers_and_solutions(
     puzzle_container: PuzzleContainer,
@@ -1779,7 +1811,7 @@ pub fn wrong_answers_and_solutions(
 /// the WASM side, which then performs the requested operation. The WASM then uses this wrapper to
 /// return the result of the operation along with ownership of the given PuzzleContainer back to
 /// the JS side.
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(doc, target_arch = "wasm32"))]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct PuzzleAndResult {
@@ -1791,7 +1823,7 @@ pub struct PuzzleAndResult {
 
 /// guess_word is similar to the native Rust's PlayMode.guess_word(guess) but uses the
 /// PuzzleAndResult wrapper type to return ownership of the passed in PuzzleContainer to the JS side.
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(doc, target_arch = "wasm32"))]
 #[wasm_bindgen]
 pub fn guess_word(
     puzzle_container: PuzzleContainer,
@@ -1839,7 +1871,7 @@ pub fn guess_word(
 
 /// remove_answer calls puzzle_container.puzzle.remove_answer(&placement), then returns ownership
 /// of the PuzzleContainer back to the calling JS side.
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(doc, target_arch = "wasm32"))]
 #[wasm_bindgen]
 pub fn remove_answer(
     puzzle_container: PuzzleContainer,
@@ -1856,7 +1888,7 @@ pub fn remove_answer(
 /// set_panic_hook is a debug feature that is called from <repo>/src/crossword_gen_wrapper.ts
 /// It improves the quality of error messages that are printed to the dev console
 /// For more details see https://github.com/rustwasm/console_error_panic_hook#readme
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(doc, target_arch = "wasm32"))]
 #[wasm_bindgen]
 pub fn set_panic_hook() {
     console_error_panic_hook::set_once();
