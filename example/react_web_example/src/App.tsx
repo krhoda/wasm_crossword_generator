@@ -19,6 +19,8 @@ function getClientGenerator(): () => Promise<CrosswordClient> {
 const getClient = getClientGenerator();
 
 function App() {
+	let [showInstructions, setShowInstructions] = useState(false);
+
 	return (
 		<div className="App">
 			<header className="App-header">
@@ -29,11 +31,38 @@ function App() {
 						<WasmLogo />
 					</div>
 				</div>
-				<p> Crossword Games</p>
+				<p className="themed-p">Anagram Crossword Game <br />
+					<span
+						onClick={() => { setShowInstructions(!showInstructions) }}
+						className="show-hide">
+						{showInstructions ? "Hide" : "Show"} Instructions and Description
+					</span>
+				</p>
+				{showInstructions ? <InstructionsAndDescription /> : ""}
 				<AnagramCrossword getClient={getClient} />
 			</header>
 		</div>
 	);
+}
+
+function InstructionsAndDescription() {
+	return (
+		<div className="instructions-holder">
+			<h3 className="instructions-h3">What is this?</h3>
+			<p>This is an anagram-crossword game powered by a Rust-based crossword generation library compiled to WebAssembly for use in the browser. The entire game is offline capable once the website has loaded!
+			More information about the tech running it, including the source of this website  <a className="themed-p" href="https://github.com/krhoda/wasm_crossword_generator">is found here.</a></p>
+			<h3 className="instructions-h3">How do I play?</h3>
+			<p>The solution to the crossword below only includes words composed of the letters presented in the bottom buttons, and includes at least one word that uses all of the letters.
+				<br />
+				Click the letter buttons in order to spell out a guess for the puzzle, the click the "Enter a Guess!" button when you're ready to guess.
+				<br />
+				A message will tell you if the guess is present in the crossword, and bad guesses are recorded below the letter buttons. The minimum guess length is 3 letters.
+				<br />
+				When the game is complete, you will be prompted to start a new puzzle.
+				<br />
+				If you get stuck you can refresh to get a new puzzle!</p>
+		</div>
+	)
 }
 
 function Plus() {
@@ -62,7 +91,7 @@ function WasmLogo() {
 			width="7em"
 			height="7em"
 			viewBox="0 0 1000 1000"
-		    className="wasm_svg"
+			className="wasm_svg"
 		>
 			<path
 				d="m376 0c0 1.08 0 2.16 0 3.3 0 38.76-31.42 70.17-70.17 70.17-38.76 0-70.17-31.42-70.17-70.17l0 0c0-1.14 0-2.22 0-3.3L0 0l0 612 612 0 0-612z"
@@ -75,13 +104,5 @@ function WasmLogo() {
 		</svg>
 	)
 }
-
-// TODO: Add Header:
-/*
-<div className="button_container">
-	<button className="nav_button">Anagram-Based<br />Simple Crossword</button>
-	<button className="nav_button">Classic<br />Crossword</button>
-</div>
-*/
 
 export default App;

@@ -139,7 +139,7 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 	return (
 		<Fragment>
 			<Crossword puzzleContainer={puzzleContainer} />
-			<p>Selected Letters: {selectedLetters.map((s) => (`${s.letter}`))}</p>
+			<p className="themed-p">Selected Letters: {selectedLetters.map((s) => (`${s.letter}`))}</p>
 			<button className="guess-button" disabled={selectedLetters.length < 3} onClick={guess}>
 				{selectedLetters.length < 3 ? "Enter a Guess!" : "Guess Word?"}
 			</button>

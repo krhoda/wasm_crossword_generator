@@ -34,6 +34,28 @@
   display: flex;
 }
 
+.themed-p {
+  color: #61dafb;
+}
+
+.show-hide {
+  font-size: .65em;
+  font-style: italic;
+  text-decoration: underline;
+}
+
+.instructions-h3 {
+  text-align: center;
+}
+
+.instructions-holder {
+  text-align: left;
+  font-size: .6em;
+  color: #61dafb;
+  margin-right: 10%;
+  margin-left: 10%;
+}
+
 .puzzle_space {
   display: inline-block;
   height: 1.5em;
