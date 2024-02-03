@@ -14,7 +14,7 @@ export default function Crossword({ puzzleContainer }: CrosswordProps) {
 			{puzzleContainer.puzzle.grid.map((r, i) => (
 				<div key={i} className="puzzle_row">
 					{r.row.map((s, j) => (
-						<div key={j} className={`puzzle_space ${s.has_char_slot ? "puzzle_space_char" : "puzzle_space_blank"}`}>{s.has_char_slot ? s.char_slot ?? " " : ""}</div>
+						<div key={j} className={`puzzle_space ${s.has_char_slot ? "puzzle_space_char" : "puzzle_space_blank"}`}>{s.has_char_slot ? (s.char_slot ? s.char_slot.toUpperCase() : " ") : ""}</div>
 					))}
 				</div>
 			))

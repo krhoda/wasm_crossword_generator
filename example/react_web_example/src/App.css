@@ -62,7 +62,9 @@
 }
 
 .puzzle_space {
-  display: inline-block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: 1.5em;
   width: 1.5em;
   border: solid #61dafb;
@@ -71,6 +73,7 @@
 
 .puzzle_space_char {
   color: #61dafb;
+  light-height: 1.5em;
 }
 
 .puzzle_space_blank {

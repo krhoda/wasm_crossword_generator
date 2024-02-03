@@ -162,7 +162,7 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 				</Fragment>
 				:
 				<Fragment>
-					<p className="themed-p">Selected Letters: {selectedLetters.map((s) => (`${s.letter}`))}</p>
+					<p className="themed-p">Selected Letters: {selectedLetters.map((s) => (`${s.letter.toUpperCase()}`))}</p>
 					<button className="guess-button" disabled={selectedLetters.length < 3} onClick={guess}>
 						{selectedLetters.length < 3 ? "Enter a Guess!" : "Guess Word?"}
 					</button>
@@ -179,7 +179,7 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 											}
 											onClick={() => { letterSelectorHandler(c, i) }}
 										>
-											{c}
+											{c.toUpperCase()}
 										</button>
 									)
 								}
