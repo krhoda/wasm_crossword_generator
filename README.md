@@ -53,7 +53,7 @@ let guess_result = null;
 assert(guess_result == "Complete")
 ```
 
-A concrete use of this library is found in the example Single-Page Application repo at [example/react_web_example].
+A concrete use of this library is found in the [example Single-Page Application](example/react_web_example).
 
 The `CrosswordClient` abstraction found [here](src/crossword_generator_wrapper.ts) contains most of the information to run the puzzle. The types defined [here](dist/types/pkg/wasm_crossword_generator.d.ts) are useful too.
 
