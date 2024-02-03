@@ -1,12 +1,12 @@
 //! #  WASM Crossword Generator
 //!
 //! `wasm_crossword_generator` is a library for generating and operating crossword puzzles with
-//! first-class WebAssembly support targetting the browser and other WASM environments. While
-//! fully functional and ergonomic as a Rust library the design is WASM-first so some trade-offs are
-//! made such as not using const generics, avoiding Option<Option<T>> because of abiguity during
-//! de/serialization, and prefering named structs to tuples.
-//! This library exposes configuration options to allow for specifying the size and density of the
-//! crossword. Three stateful "playmodes" are also supported to facilite different styles of puzzle.
+//! first-class WebAssembly support targeting the browser and other WASM environments. While
+//! fully functional and ergonomic as a Rust library, the design is WASM-first so some trade-offs are
+//! made such as not using const generics, avoiding `Option<Option<T>>` because of abiguity during
+//! JSON de/serialization, and prefering named structs to tuples.
+//! This library exposes configuration options for specifying the size and density of the crossword.
+//! Three stateful "playmodes" are also supported to facilite different styles of puzzle.
 //!
 //! Example usage in pure Rust looks like:
 //! ```rust
@@ -19,18 +19,15 @@
 //!   // In a real usage, there would be more entries.
 //! ];
 //!
+//! // NOTE: A real SolutionConf would probably want "requirements" to allow for retrying crossword
+//! // generation. Because there is only one word, we know we'll get the world's simplest puzzle in
+//! // one try.
 //! let solution_conf = SolutionConf {
 //!     words: words,
 //!     max_words: 20,
 //!     width: 10,
 //!     height: 10,
-//!     requirements: Some(CrosswordReqs {
-//!         max_retries: 500,
-//!         min_letters_per_word: None,
-//!         min_words: None,
-//!         max_empty_columns: None,
-//!         max_empty_rows: None,
-//!     }),
+//!     requirements: None,
 //!     initial_placement: None,
 //! };
 //!
@@ -38,14 +35,17 @@
 //! // immediately informed if the guess is correct or not.
 //! let mut puzzle = PerWordPuzzle::new(solution_conf)?;
 //!
-//! // Because it is a PerWordPuzzle, the placement is ignored, but required to allow generalization
-//! // over player guesses. Other Playmodes use placement and guess validity is not always known.
 //! let guess = PlacedWord {
+//!   // Because it is a PerWordPuzzle, the placement is ignored, unlike other Playmodes.
 //!   placement: Placement { x: 0, y: 0, direction: rand::random() },
+//!
 //!   // NOTE: you don't need to match the "clue" field, it is ignored for purposes of PartialEq
 //!   word: Word { text: "library".to_string(), clue: None }
 //! };
+//!
 //! let guess_result = puzzle.guess_word(guess)?;
+//!
+//! // Because there is only one word, the puzzle will result in "Complete" instead of "Correct"
 //! assert_eq!(guess_result, GuessResult::Complete);
 //! # Ok(())
 //! # }
@@ -71,6 +71,8 @@
 //!
 //! See [the project repo](https://github.com/krhoda/wasm_crossword_generator) for more details
 //! and instructions on how to run examples.
+
+#![warn(missing_docs)]
 
 use rand::{
     distributions::{Distribution, Standard},
@@ -130,7 +132,9 @@ impl PartialEq for Word {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub enum Direction {
+    /// Horizontal indicates the left-to-right orientation
     Horizontal,
+    /// Verticle indicates the up-to-down orientation
     Verticle,
 }
 
@@ -162,8 +166,11 @@ impl Distribution<Direction> for Standard {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub struct Placement {
+    /// x is one of the Placement's coordinates
     pub x: usize,
+    /// y is one of the Placement's coordinates
     pub y: usize,
+    /// direction describes the orientation of the Placement
     pub direction: Direction,
 }
 
@@ -176,7 +183,9 @@ pub struct Placement {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub struct PlacedWord {
+    /// placement contains the coordinates of origin and orientation of the PlacedWord
     pub placement: Placement,
+    /// word contains the text of the solution and possibly the clue
     pub word: Word,
 }
 
@@ -191,6 +200,8 @@ pub struct PlacedWord {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub struct SolutionRow {
+    /// row is a vector of `Option<char>` with None representing an empty space and Some(char)
+    /// representing part of the solution's words.
     pub row: Vec<Option<char>>,
 }
 
@@ -210,28 +221,42 @@ impl SolutionRow {
 /// of retrying, which if fails, bubbles the CrosswordError::MaxRetries error.
 #[derive(Error, Debug)]
 pub enum CrosswordError {
+    /// BadConfig is when a valid puzzle cannot be generated from the configuration.
     #[error("cannot generate valid puzzle from list of words")]
     BadConfig,
+    /// BadFit describes a word that doesn't fit at a given Placement.
     #[error("word doesn't fit")]
     BadFit,
+    /// BadPuzzleType describes when a bad command is issued by an external client.
     #[error("invalid operation for given PuzzleType")]
     BadPuzzleType,
+    /// EmptyIntersection describes when a word is placed incorrectly during generation.
     #[error("intersection point was empty on non-first word")]
     EmptyIntersection,
+    /// GridStateError describes when the puzzles internal state is incoherent at runtime.
     #[error("grid state doesn't match solutions answer array")]
     GridStateError,
+    /// InsufficientPuzzle describes when the generated puzzle fails to meet the given requirements.
     #[error("generated puzzle did not meet requirements")]
     InsufficientPuzzle,
+    /// InvalidPlayerGuess describes when a bad guess is given.
     #[error("player guess word's placement cannot be found")]
     InvalidPlayerGuess,
+    /// MaxRetries occurs when retrying crossword generation fails equal to the max_retries option.
     #[error("could not generate crossword before hitting max retries")]
     MaxRetries,
+    /// MoreAnswersThanWords occurs when puzzle state is incoherent at runtime.
     #[error("more answers than words")]
     MoreAnswersThanWords,
+    /// NoValidInitialWords occurs when inital word requirements have no qualifying word in the words
+    /// vector.
     #[error("no valid inital words")]
     NoValidInitialWords,
+    /// PointOutOfBounds occurs when a given Placement's coordinates are out of bounds from the
+    /// Solution's grid
     #[error("point out of bounds")]
     PointOutOfBounds,
+    /// WordMismatch occurs if the puzzle state is incoherent at runtime.
     #[error("puzzle doesn't match list of words")]
     WordMismatch,
 }
@@ -272,11 +297,17 @@ pub struct CrosswordReqs {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub enum CrosswordInitialPlacementStrategy {
+    /// Center describes placing the initial word in the vericle and horizontal center of the grid.
     Center(Direction),
+    /// Custom requires a placement describing where to place the word and how to orient it.
     Custom(Placement),
+    /// LowerLeft places the original word at the lower left corner of the grid.
     LowerLeft(Direction),
+    /// LowerRight places the original word at the lower right corner of the grid.
     LowerRight(Direction),
+    /// UpperLeft places the original word at the upper left corner of the grid.
     UpperLeft(Direction),
+    /// UpperRight places the original word at the upper right corner of the grid.
     UpperRight(Direction),
 }
 
@@ -593,38 +624,6 @@ impl Solution {
         skipped_words.reverse();
         words.append(&mut skipped_words);
         Ok(words)
-
-        // match words.pop() {
-        //     None => Err(CrosswordError::NoValidInitialWords),
-        //     Some(word) => {
-        //         let mut word = word;
-        //         loop {
-        //             match self.try_initial_placement(min_letter_count, &strategy, word) {
-        //                 Ok(_) => {
-        //                     break;
-        //                 }
-
-        //                 Err(w) => {
-        //                     skipped_words.push(w);
-
-        //                     match words.pop() {
-        //                         None => {
-        //                             return Err(CrosswordError::NoValidInitialWords);
-        //                         }
-        //                         Some(w) => {
-        //                             word = w;
-        //                         }
-        //                     }
-        //                 }
-        //             };
-        //         }
-
-        //         // TODO: Make sure this really results in place, it may need to have skip.append
-        //         skipped_words.reverse();
-        //         words.append(&mut skipped_words);
-        //         Ok(words)
-        //     }
-        // }
     }
 
     // returns true if the word was placed, false if it fails to meet some requirement
@@ -1204,6 +1203,7 @@ pub struct PuzzleSpace {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub struct PuzzleRow {
+    /// row contains a vector of puzzle spaces in various states.
     pub row: Vec<PuzzleSpace>,
 }
 
@@ -1216,8 +1216,12 @@ pub struct PuzzleRow {
     tsify(into_wasm_abi, from_wasm_abi)
 )]
 pub struct Puzzle {
+    /// solution is the underlying solution to the puzzle and source for how to construct the grid
     pub solution: Solution,
+    /// player_answers is a vector of player guesses used to display on the grid
     pub player_answers: Vec<PlacedWord>,
+    /// grid is a data structure representing the state of crossword of the course of play, used by
+    /// front-ends to render the puzzle to the player.
     pub grid: Vec<PuzzleRow>,
 }
 
@@ -1656,8 +1660,11 @@ pub fn new_solution(conf: SolutionConf) -> Result<Solution, CrosswordError> {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub enum PuzzleType {
+    /// Classic coresponds to the ClassicPuzzle struct
     Classic,
+    /// PlacedWord coresponds to the PlacedWord struct
     PlacedWord,
+    /// PerWord coresponds to the PerWord struct
     PerWord,
 }
 
@@ -1697,7 +1704,9 @@ pub fn new_puzzle(
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct PuzzleCompleteContainer {
+    /// puzzle_container holds the new version of the PuzzleContainer passed in from the client.
     pub puzzle_container: PuzzleContainer,
+    /// is_complete reports on whether the puzzle in puzzle_container is complete.
     pub is_complete: bool,
 }
 
@@ -1723,7 +1732,9 @@ pub fn is_puzzle_complete(
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct WrongAnswerPair {
+    /// got is what the crossword is recording as the player's incorrect guess.
     pub got: PlacedWord,
+    /// wanted is what the crossword solution states is the correct guess.
     pub wanted: PlacedWord,
 }
 
@@ -1735,7 +1746,10 @@ pub struct WrongAnswerPair {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct WrongAnswersContainer {
+    /// puzzle_container holds the new version of the PuzzleContainer passed in from the client.
     pub puzzle_container: PuzzleContainer,
+    /// wrong_answer_pairs includes the player's incorrect guess next to the right answer for the
+    /// given Placement.
     pub wrong_answer_pairs: Vec<WrongAnswerPair>,
 }
 
@@ -1769,7 +1783,9 @@ pub fn wrong_answers_and_solutions(
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct PuzzleAndResult {
+    /// puzzle_container holds the new version of the PuzzleContainer passed in from the client.
     puzzle_container: PuzzleContainer,
+    /// guess_result contains the result of the guess passed in from the client.
     guess_result: GuessResult,
 }
 
