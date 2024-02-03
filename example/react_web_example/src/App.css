@@ -17,6 +17,19 @@
   justify-content: center;
 }
 
+.logo_row {
+  display: grid;
+  grid-template-columns: .5fr .2fr .5fr;
+  place-items: center;
+  margin-bottom: -3em;
+  margin-top: -2em;
+}
+
+.wasm_svg {
+  margin-left: 2em;
+  padding-top: 2.7em;
+}
+
 .puzzle_row {
   display: flex;
 }
