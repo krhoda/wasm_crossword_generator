@@ -1,11 +1,76 @@
 //! #  WASM Crossword Generator
 //!
-//! `wasm_crossword_generator` is a library to generate and operate crossword puzzles with first-class
-//! WebAssembly support for use in the browser or other WASM environments. It provides a
-//! configurable `Solution`s generator and multiple stateful `Playmode`s. It is WASM-first so
-//! some design trade-offs are needed such as not using const generics, creating wrapper types, and
-//! using labelled structs instead of tuples. See https://github.com/krhoda/wasm_crossword_generator
-//! for more details and instructions on how to run examples.
+//! `wasm_crossword_generator` is a library for generating and operating crossword puzzles with
+//! first-class WebAssembly support targetting the browser and other WASM environments. While
+//! fully functional and ergonomic as a Rust library the design is WASM-first so some trade-offs are
+//! made such as not using const generics, avoiding Option<Option<T>> because of abiguity during
+//! de/serialization, and prefering named structs to tuples.
+//! This library exposes configuration options to allow for specifying the size and density of the
+//! crossword. Three stateful "playmodes" are also supported to facilite different styles of puzzle.
+//!
+//! Example usage in pure Rust looks like:
+//! ```rust
+//! # fn main() -> Result<(), wasm_crossword_generator::CrosswordError> {
+//! use wasm_crossword_generator::*;
+//! use serde::{Deserialize, Serialize};
+//!
+//! let words: Vec<Word> = vec![
+//!   Word { text: "library".to_string(), clue: Some("Not a framework.".to_string()) },
+//!   // In a real usage, there would be more entries.
+//! ];
+//!
+//! let solution_conf = SolutionConf {
+//!     words: words,
+//!     max_words: 20,
+//!     width: 10,
+//!     height: 10,
+//!     requirements: Some(CrosswordReqs {
+//!         max_retries: 500,
+//!         min_letters_per_word: None,
+//!         min_words: None,
+//!         max_empty_columns: None,
+//!         max_empty_rows: None,
+//!     }),
+//!     initial_placement: None,
+//! };
+//!
+//! // A PerWordPuzzle is one where the player only guesses words, not locations. The player is
+//! // immediately informed if the guess is correct or not.
+//! let mut puzzle = PerWordPuzzle::new(solution_conf)?;
+//!
+//! // Because it is a PerWordPuzzle, the placement is ignored, but required to allow generalization
+//! // over player guesses. Other Playmodes use placement and guess validity is not always known.
+//! let guess = PlacedWord {
+//!   placement: Placement { x: 0, y: 0, direction: rand::random() },
+//!   // NOTE: you don't need to match the "clue" field, it is ignored for purposes of PartialEq
+//!   word: Word { text: "library".to_string(), clue: None }
+//! };
+//! let guess_result = puzzle.guess_word(guess)?;
+//! assert_eq!(guess_result, GuessResult::Complete);
+//! # Ok(())
+//! # }
+//!
+//! ```
+//! A quick tour of the structures looks like:
+//!
+//! `Word` a structure containing the field `text` (the string whose characters make up the answer)
+//! and an optional, self-descriptive `clue` field.
+//!
+//! `Direction` is an enum of either `Verticle` or `Horizontal`, used to describe a `Word`'s
+//! orientation.
+//!
+//! `Placement` is a struct containing a pair of coordinates (the fields `x` and `y`) and a
+//! `direction` field of type `Direction`.
+//!
+//! `PlacedWord` is a combination of a `Word` (field: `word`) and `Placement` (field: `placement`).
+//! This is used for the internal representation of the `Solution` in it's list of answers.
+//!
+//! `SolutionRow` is a struct with a `row` field of type `Vec<Option<char>>`. This is used to
+//! to represent a row of the crossword, with each item being of type `Some(c: char)` in the case
+//! of the square being part of a solution or `None` in the case that the space is blank.
+//!
+//! See [the project repo](https://github.com/krhoda/wasm_crossword_generator) for more details
+//! and instructions on how to run examples.
 
 use rand::{
     distributions::{Distribution, Standard},
@@ -34,7 +99,7 @@ const MIN_LETTER_COUNT: usize = 3;
 /// Word is a record containing a potential portion of the Crossword answer at "text"
 /// along with an optional "clue" field.
 /// The "text" field will be split using .chars() with all the implications that brings.
-#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Serialize)]
 #[cfg_attr(
     target_arch = "wasm32",
     derive(Tsify),
@@ -45,6 +110,14 @@ pub struct Word {
     pub text: String,
     /// The optional clue to be displayed in some crossword game formats.
     pub clue: Option<String>,
+}
+
+/// This implementation is done so that guesses do not need to have the same clue entry as the
+/// solution.
+impl PartialEq for Word {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text
+    }
 }
 
 /// Direction is used to determine the orientation of the word. Includes an "other" function to get

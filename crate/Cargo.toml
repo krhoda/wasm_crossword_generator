@@ -1,10 +1,10 @@
 [package]
-name = "wasm-crossword-gen"
+name = "wasm_crossword_generator"
 version = "0.0.1"
 authors = ["K <kelseydrhoda@gmail.com>"]
 edition = "2021"
-repository = "https://github.com/krhoda/wasm_crossword_gen/"
-description = "A library for crossword puzzle generation with the intention of targeting WASM and Godot games."
+repository = "https://github.com/krhoda/wasm_crossword_generator/"
+description = "A pure Rust library for crossword puzzle generation with first-class WASM support."
 license = "MIT OR Apache-2.0"
 
 [lib]
