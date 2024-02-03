@@ -36,8 +36,8 @@ let puzzle_container = client.generate_crossword_puzzle(conf, "PerWord");
 let guess = {
   word: {
     text: "library",
-	// The clue is not checked as part of a guess for any Playmode.
-	clue: null,
+    // The clue is not checked as part of a guess for any Playmode.
+    clue: null,
   },
   // The placement is ignored because it is a "PerWord" puzzle, but with other Playmodes
   // this would be meaningful.
