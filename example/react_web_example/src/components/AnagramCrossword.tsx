@@ -76,6 +76,7 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 		}
 
 		setIsComplete(false);
+		console.log(puzzle);
 		setPuzzleContainer(puzzle);
 		setSolutionChars(shuffleString(nextSolutionChars));
 		setBadGuesses([]);
