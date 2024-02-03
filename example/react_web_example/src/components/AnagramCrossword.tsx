@@ -30,10 +30,14 @@ function shuffleString(s: string): string {
 }
 
 const initPuzzleContainer: PuzzleContainer | null = null;
+const initBadGuesses: Array<string> = [];
 
 export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 	let [puzzleContainer, setPuzzleContainer] = useState(initPuzzleContainer);
 	let [solutionChars, setSolutionChars] = useState("");
+	let [showBadGuesses, setShowBadGuesses] = useState(false);
+	let [badGuesses, setBadGuesses] = useState(initBadGuesses);
+	let [isComplete, setIsComplete] = useState(false);
 
 	async function newPuzzle(): Promise<void> {
 		let client = await getClient();
@@ -51,7 +55,7 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 				max_words: 22,
 				initial_placement: {
 					min_letter_count: nextSolutionChars.length,
-					strategy: { Center: "Horizontal"},
+					strategy: { Center: "Horizontal" },
 				},
 				words,
 				requirements: {
@@ -71,8 +75,10 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 			}
 		}
 
+		setIsComplete(false);
 		setPuzzleContainer(puzzle);
 		setSolutionChars(shuffleString(nextSolutionChars));
+		setBadGuesses([]);
 	};
 
 	let [selectedLetters, setSelectedLetters] = useState(initialSelectedLetters);
@@ -125,9 +131,15 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 			});
 
 			if (guess_result == "Wrong") {
-				alert("Wrong guess!")
+				alert("Wrong guess!");
+				setBadGuesses([...badGuesses, selectedLetters.map((sl) => {
+					return sl.letter;
+				}).join("")]);
+			} else if (guess_result == "Complete") {
+				alert("Increadible! You've won!");
+				setIsComplete(true);
 			} else {
-				alert("Amazing!")
+				alert("Amazing!");
 			}
 			setPuzzleContainer(puzzle_container);
 			setSelectedLetters([]);
@@ -138,29 +150,54 @@ export default function AnagramCrossword({ getClient }: AnagramCrosswordProps) {
 
 	return (
 		<Fragment>
+
 			<Crossword puzzleContainer={puzzleContainer} />
-			<p className="themed-p">Selected Letters: {selectedLetters.map((s) => (`${s.letter}`))}</p>
-			<button className="guess-button" disabled={selectedLetters.length < 3} onClick={guess}>
-				{selectedLetters.length < 3 ? "Enter a Guess!" : "Guess Word?"}
-			</button>
-			<div className="letter-container">
-				{solutionChars.split("")
-					.map(
-						(c, i) => {
-							return (
-								<button
-									key={`${c}-${i}`}
-									className={
-										`letter-button letter-button-${selectedLettersContains(c, i) ? "selected" : "unselected"}`
-									}
-									onClick={() => { letterSelectorHandler(c, i) }}
-								>
-									{c}
-								</button>
-							)
-						}
-					)}
-			</div>
+			{isComplete ?
+				<Fragment>
+					<p className="themed-p">Congratulations, you've completed the puzzle!</p>
+					<button className="guess-button" onClick={newPuzzle}>
+						Generate a new puzzle!
+					</button>
+				</Fragment>
+				:
+				<Fragment>
+					<p className="themed-p">Selected Letters: {selectedLetters.map((s) => (`${s.letter}`))}</p>
+					<button className="guess-button" disabled={selectedLetters.length < 3} onClick={guess}>
+						{selectedLetters.length < 3 ? "Enter a Guess!" : "Guess Word?"}
+					</button>
+
+					<div className="letter-container">
+						{solutionChars.split("")
+							.map(
+								(c, i) => {
+									return (
+										<button
+											key={`${c}-${i}`}
+											className={
+												`letter-button letter-button-${selectedLettersContains(c, i) ? "selected" : "unselected"}`
+											}
+											onClick={() => { letterSelectorHandler(c, i) }}
+										>
+											{c}
+										</button>
+									)
+								}
+							)}
+					</div>
+					<div className="bad-guess-container">
+						<p className="themed-p" onClick={() => setShowBadGuesses(!showBadGuesses)}>
+							<span className="show-hide" >
+								{showBadGuesses ? "Hide" : "Show"} bad guesses
+							</span>
+						</p>
+						{showBadGuesses ?
+							(badGuesses.length > 0 ?
+								<p className="themed-p">Already Guessed: {badGuesses.join(", ")}</p>
+								: <p className="themed-p">No bad guesses yet!</p>)
+							: ""}
+					</div>
+				</Fragment>
+			}
 		</Fragment>
 	);
 };

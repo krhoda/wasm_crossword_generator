@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import logo from './logo.svg';
 import './App.css';
 import AnagramCrossword from "./components/AnagramCrossword";
-// TODO: Fix issue with PuzzleType import
 import { CrosswordClient } from "wasm_crossword_generator";
 
 // Use let-over-lambda to get the power of a global while dealing with one-time async initialization.
@@ -49,14 +48,14 @@ function InstructionsAndDescription() {
 	return (
 		<div className="instructions-holder">
 			<h3 className="instructions-h3">What is this?</h3>
-			<p>This is an anagram-crossword game powered by a Rust-based crossword generation library compiled to WebAssembly for use in the browser. The entire game is offline capable once the website has loaded!
-			More information about the tech running it, including the source of this website  <a className="themed-p" href="https://github.com/krhoda/wasm_crossword_generator">is found here.</a></p>
+			<p>This is an anagram-crossword game powered by a Rust-based crossword generation library compiled to WebAssembly for use in the browser. It's been loaded into a standard Create-React-App in part to demonstrate it's portability. The entire game is offline capable once the website has loaded!
+				More information about the tech running it, including the source of this website  <a className="themed-p" href="https://github.com/krhoda/wasm_crossword_generator">is found here.</a></p>
 			<h3 className="instructions-h3">How do I play?</h3>
 			<p>The solution to the crossword below only includes words composed of the letters presented in the bottom buttons, and includes at least one word that uses all of the letters.
 				<br />
-				Click the letter buttons in order to spell out a guess for the puzzle, the click the "Enter a Guess!" button when you're ready to guess.
+				Click the letter buttons in order to spell out a guess for the puzzle, the click the "Enter a Guess!"/"Guess Word?" button when you're ready to guess.
 				<br />
-				A message will tell you if the guess is present in the crossword, and bad guesses are recorded below the letter buttons. The minimum guess length is 3 letters.
+				A message will tell you if the guess is present in the crossword (which of course will update the puzzle below), and bad guesses are recorded below the letter buttons. The minimum guess length is 3 letters.
 				<br />
 				When the game is complete, you will be prompted to start a new puzzle.
 				<br />

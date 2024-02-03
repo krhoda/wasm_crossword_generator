@@ -17,6 +17,10 @@
   justify-content: center;
 }
 
+.bad-guess-container {
+  margin-bottom: 5em;
+}
+
 .logo_row {
   display: grid;
   grid-template-columns: .5fr .2fr .5fr;
@@ -52,6 +56,7 @@
   text-align: left;
   font-size: .6em;
   color: #61dafb;
+  margin-top: -2em;
   margin-right: 10%;
   margin-left: 10%;
 }
