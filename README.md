@@ -24,12 +24,41 @@ const conf: SolutionConf = {
   initial_placement: null,
   words,
   // A real conf would almost certainly want to pass an options object here to enable retries,
-  // but because we only have one word and no acceptance criteria,
-  // we know that the puzzle will be created first try.
+  // but because we only have one word and no acceptance criteria, we know that the puzzle will be
+  // created first try.
   requirements: null,
 }
+
+// The "PerWord" puzzle only requires players to guess a word, not a word and a placement. It also
+// immediately informs the user if the guess was correct.
+let puzzle_container = client.generate_crossword_puzzle(conf, "PerWord");
+
+let guess = {
+  word: {
+    text: "library",
+	// The clue is not checked as part of a guess for any Playmode.
+	clue: null,
+  },
+  // The placement is ignored because it is a "PerWord" puzzle, but with other Playmodes
+  // this would be meaningful.
+  placement { x: 0, y: 0, direction: "Horizontal" },
+};
+
+// Note the need to re-assign to puzzle_container. This technique is used to pass ownership
+// back and forth with WASM.
+let guess_result = null;
+{puzzle_container, guess_result} = client.guess_word(puzzle, guess);
+
+// Because there is only one word in the "puzzle", the puzzle is "Complete" after one guess.
+assert(guess_result == "Complete")
 ```
 
-## Inspirations:
-https://www.baeldung.com/cs/generate-crossword-puzzle
-https://mitchum.blog/building-a-crossword-puzzle-generator-with-javascript/
+A concrete use of this library is found in the example Single-Page Application repo at [example/react_web_example].
+
+The `CrosswordClient` abstraction found at [src/crossword_generator_wrapper.ts] contains most of the information to run the puzzle. The types defined in [src/pkg/wasm_crossword_generator.d.ts] are useful too.
+
+The playmodes are "Classic", "PlacedWord", and "PerWord". "Classic" doesn't tell the user if the guess is correct or not and allows the user to save (and later, remove) incorrect answers. "PlacedWord" does tell the user if the guess is correct at time of the guess. "PerWord" is like placed word, but does not check the "Placement" portion of a guess.
+
+There are more useful functions attached to the client, like `wrong_answers_and_solutions` and `remove_answer`. Full documentation forthcoming.
+
+Happy puzzling!

@@ -21,7 +21,7 @@ const rolls = (fmt, env) => ({
     format: fmt,
     entryFileNames:
       outdir(fmt, env) + `/[name].` + (fmt === "cjs" ? "cjs" : "js"),
-    name: "wasm_crossword_gen",
+    name: "wasm_crossword_generator",
   },
   plugins: [
     // We want to inline our wasm bundle as base64. Not needing browser users
@@ -59,8 +59,8 @@ const rolls = (fmt, env) => ({
         // on the rust code
         fs.mkdirSync(`./dist/types/pkg`, { recursive: true });
         fs.copyFileSync(
-          path.resolve("./src/pkg/wasm_crossword_gen.d.ts"),
-          path.resolve(`./dist/types/pkg/wasm_crossword_gen.d.ts`)
+          path.resolve("./src/pkg/wasm_crossword_generator.d.ts"),
+          path.resolve(`./dist/types/pkg/wasm_crossword_generator.d.ts`)
         );
       },
     },

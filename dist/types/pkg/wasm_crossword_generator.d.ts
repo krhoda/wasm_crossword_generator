@@ -49,9 +49,9 @@ export function guess_word(puzzle_container: PuzzleContainer, guess: PlacedWord)
 */
 export function remove_answer(puzzle_container: PuzzleContainer, placement: Placement): PuzzleContainer;
 /**
-* set_panic_hook is a debug feature that is called from <repo>/src/crossword_gen_wrapper.ts
+* set_panic_hook is a debug feature that is called from npm_pkg/src/crossword_generator_wrapper.ts
 * It improves the quality of error messages that are printed to the dev console
-* For more details see https://github.com/rustwasm/console_error_panic_hook#readme
+* For more details see `<https://github.com/rustwasm/console_error_panic_hook#readme>`
 */
 export function set_panic_hook(): void;
 export interface Word {

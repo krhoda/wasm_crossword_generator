@@ -254,9 +254,9 @@ function remove_answer(puzzle_container, placement) {
 }
 
 /**
-* set_panic_hook is a debug feature that is called from <repo>/src/crossword_gen_wrapper.ts
+* set_panic_hook is a debug feature that is called from npm_pkg/src/crossword_generator_wrapper.ts
 * It improves the quality of error messages that are printed to the dev console
-* For more details see https://github.com/rustwasm/console_error_panic_hook#readme
+* For more details see `<https://github.com/rustwasm/console_error_panic_hook#readme>`
 */
 function set_panic_hook() {
     wasm.set_panic_hook();
@@ -476,7 +476,7 @@ async function __wbg_init(input) {
     if (wasm !== undefined) return wasm;
 
     if (typeof input === 'undefined') {
-        input = new URL('wasm_crossword_gen_bg.wasm', "");
+        input = new URL('wasm_crossword_generator_bg.wasm', "");
     }
     const imports = __wbg_get_imports();
 

@@ -1,5 +1,5 @@
 {
-  "name": "wasm_crossword_gen",
+  "name": "wasm_crossword_generator",
   "version": "0.0.1",
   "author": "Kelsey Rhoda <kelseydrhoda@gmail.com>",
   "license": "MIT",
@@ -22,7 +22,7 @@
       "import": "./dist/es-slim/index_slim.js",
       "default": "./dist/cjs-slim/index_slim.cjs"
     },
-    "./wasm_quicksort_example_bg.wasm": "./dist/wasm_quicksort_example_bg.wasm",
+    "./wasm_crossword_generator.wasm": "./dist/wasm_crossword_generator_bg.wasm",
     "./package.json": "./package.json"
   },
   "files": [
