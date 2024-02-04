@@ -1,6 +1,6 @@
 {
   "name": "wasm_crossword_generator",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": "Kelsey Rhoda <kelseydrhoda@gmail.com>",
   "license": "(MIT OR Apache-2.0)",
   "description": "A WASM-based TypeScript library for generating and operating crossword puzzles.",
