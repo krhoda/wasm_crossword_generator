@@ -44,4 +44,6 @@ let guess_result = puzzle.guess_word(guess)?;
 assert_eq!(guess_result, GuessResult::Complete);
 ```
 
-More detail is found in the offical documentation [here](https://docs.rs/wasm_crossword_generator/latest/wasm_crossword_generator/). In the directory above this project, this crate is packaged for use in the brower and published to NPM, more details on that are found there.  In the `../example` folder, runnable, self-contained browser applications demonstrate this library in use.
+More detail is found in the offical documentation [here](https://docs.rs/wasm_crossword_generator/latest/wasm_crossword_generator/). In the directory above this project, this crate is packaged for use in the brower and published to NPM, more details on that are found there.
+
+An example site using this library can be viewed and played online [here](http://krhoda.github.io/anagram-crosswords). The source of that site is meant to act as and example / demo and is found [here](http://github.com/krhoda/anagram-crosswords).

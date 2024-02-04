@@ -1,12 +1,13 @@
 # WASM Crossword Generator
 WASM Crossword Generator is a TypeScript library for the generation and operation of crossword puzzles. The main functionality is written in Rust, which is compiled to WASM with TypeScript types generated from the Rust types. The end result is completely portable and well-typed.
 
-
 The underlying Rust code is found in the `crate` directory, it's [published on it's own to crates.io](https://crates.io/crates/wasm_crossword_generator) and [documentation is available](https://docs.rs/wasm_crossword_generator/latest/wasm_crossword_generator/).
 
-This directory houses the `src` for the NPM package `wasm_crossword_generator` as well as `example`s in the respective directories.
+This directory houses the `src` for the NPM package `wasm_crossword_generator` as well as the `dist` which appears [in the NPM package](https://www.npmjs.com/package/wasm_crossword_generator).
 
-To add it to your NPM project.
+An example site using this library can be viewed and played online [here](http://krhoda.github.io/anagram-crosswords). The source of that site is meant to act as and example / demo and is found [here](http://github.com/krhoda/anagram-crosswords).
+
+To add this library to your NPM project.
 ```
 $ npm install --save wasm_crossword_generator
 ```
@@ -53,12 +54,12 @@ let guess_result = null;
 assert(guess_result == "Complete")
 ```
 
-A concrete use of this library is found in the [example Single-Page Application](example/react_web_example).
-
-The `CrosswordClient` abstraction found [here](src/crossword_generator_wrapper.ts) contains most of the information to run the puzzle. The types defined [here](dist/types/pkg/wasm_crossword_generator.d.ts) are useful too.
-
 The playmodes are "Classic", "PlacedWord", and "PerWord". "Classic" doesn't tell the user if the guess is correct or not and allows the user to save (and later, remove) incorrect answers. "PlacedWord" does tell the user if the guess is correct at time of the guess. "PerWord" is like placed word, but does not check the "Placement" portion of a guess.
 
-There are more useful functions attached to the client, like `wrong_answers_and_solutions` and `remove_answer`. Full documentation forthcoming.
+The `CrosswordClient` abstraction found [here](src/crossword_generator_wrapper.ts) contains most of the information needed to define and run puzzles. There are other functions attached to the client, like `wrong_answers_and_solutions` and `remove_answer`.
+
+The types defined [here](dist/types/pkg/wasm_crossword_generator.d.ts) are useful for understanding.
+
+Full TypeScript-side documentation forthcoming, until then please reference the [Rust documentation](https://docs.rs/wasm_crossword_generator/latest/wasm_crossword_generator/), the structures and functions are identical.
 
 Happy puzzling!
