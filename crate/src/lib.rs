@@ -101,8 +101,9 @@
 //! These include: [PuzzleType], [PuzzleContainer], [PuzzleCompleteContainer], [WrongAnswerPair],
 //! [WrongAnswersContainer], and [PuzzleAndResult].
 //!
-//! See [the project repo](https://github.com/krhoda/wasm_crossword_generator) for more details
-//! and instructions on how to run examples. A specifically WASM-based example is found [here](https://github.com/krhoda/wasm_crossword_generator/tree/main/example/react_web_example).
+//! See [the project repo](https://github.com/krhoda/wasm_crossword_generator) for more details about it's downstream packaging to NPM.
+//!
+//! An example of the library in action is [found here](https://krhoda.github.io/anagram-crosswords), and the source of that web app is found [at this repo](https://github.com/krhoda/anagram-crosswords).
 
 #![warn(missing_docs)]
 
